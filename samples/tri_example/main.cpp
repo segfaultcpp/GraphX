@@ -6,7 +6,7 @@
 
 int main() {
 	std::array layers = {
-		gx::LayersList::khr_validation,
+		gx::LayerList::khr_validation,
 	};
 
 	auto inst_desc = gx::InstanceDesc{}

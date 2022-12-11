@@ -4,21 +4,23 @@
 #include <ranges>
 #include <vector>
 #include <misc/functional.hpp>
+#include <misc/utils.hpp>
 
 namespace gx {
 	template<rng::random_access_range ReqRng, rng::input_range SupRng, typename Comp = std::equal_to<>, typename Proj = std::identity>
 	std::vector<usize> check_support(ReqRng&& requested, SupRng&& supported, Proj proj = {}, Comp&& comp = {}) noexcept {
-		std::vector<usize> unsupported_idx;
-
-		if (std::size(requested) != 0) {
-			for (usize i : rng::views::iota(0u, std::size(requested))) {
-				auto it = rng::find_if(supported, fn::compare(requested[i], std::forward<Comp>(comp), proj));
-
-				if (it == std::end(supported)) {
-					unsupported_idx.push_back(i);
+		auto view = requested | utils::index() |
+			rng::views::filter(
+				[sup = std::forward<SupRng>(supported), comp, proj]
+				(auto p) noexcept {
+					return rng::find_if(sup, fn::compare(p.second, comp, proj)) == std::end(sup);
 				}
-			}
-		}
-		return unsupported_idx;
+			) |
+			rng::views::transform(
+				[](auto p) noexcept {
+					return p.first;
+				}
+			);
+		return std::vector<usize>(view.begin(), view.end());
 	}
 }

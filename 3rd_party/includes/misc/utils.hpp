@@ -56,7 +56,7 @@ namespace utils {
 	public:
 		constexpr IndexView() noexcept = default;
 
-		constexpr IndexView(Rng&& rng) noexcept
+		constexpr IndexView(Rng rng) noexcept
 			: base_{ rng }
 			, iter_{ 0u, std::begin(rng) }
 		{}
@@ -88,9 +88,6 @@ namespace utils {
 
 	template<class Rng>
 	IndexView(Rng&& base) -> IndexView<std::ranges::views::all_t<Rng>>;
-
-	template<typename T>
-	IndexView(std::span<T>&) -> IndexView<std::ranges::ref_view<std::span<T>>>;
 
 	namespace details {
 		struct IndexViewClosure

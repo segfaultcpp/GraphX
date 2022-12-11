@@ -27,12 +27,12 @@ namespace gx {
 		{}
 	};
 
-	struct ExtensionsList {
+	struct ExtensionList {
 		static constexpr const char* khr_surface = "VK_KHR_surface";
 		static constexpr const char* khr_win32_surface = "VK_KHR_win32_surface";
 	};
 
-	struct LayersList {
+	struct LayerList {
 		static constexpr const char* khr_validation = "VK_LAYER_KHRONOS_validation";
 	};
 
@@ -101,7 +101,7 @@ namespace gx {
 
 	template<SurfaceImpl T>
 	struct SurfaceKhrExt {
-		constexpr static const char* ext_names[] = {"VK_KHR_surface", T::ext_impl_name};
+		constexpr static const char* ext_names[] = { ExtensionList::khr_surface, T::ext_impl_name };
 	
 		SurfaceKhrExt() noexcept = default;
 		
@@ -132,7 +132,7 @@ namespace gx {
 	#include <vulkan/vulkan_win32.h>
 
 	struct SurfaceWin32KhrExt {
-		constexpr static const char* ext_impl_name = "VK_KHR_win32_surface";
+		constexpr static const char* ext_impl_name = ExtensionList::khr_win32_surface;
 		using WindowHandle_t = HWND;
 		using AppInstance_t = HINSTANCE;
 
