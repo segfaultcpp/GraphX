@@ -55,18 +55,22 @@ namespace gx {
 			, layers( l )
 		{}
 
+		[[nodiscard]]
 		constexpr InstanceDesc set_app_desc(std::string_view name, Version version) const noexcept {
 			return InstanceDesc{ name, version, engine_name, engine_version, extensions, layers };
 		}
 
+		[[nodiscard]]
 		constexpr InstanceDesc set_engine_desc(std::string_view name, Version version) const noexcept {
 			return InstanceDesc{ app_name, app_version, name, version, extensions, layers };
 		}
 
+		[[nodiscard]]
 		constexpr InstanceDesc enable_extensions(std::span<const char*> exts) const noexcept {
 			return InstanceDesc{ app_name, app_version, engine_name, engine_version, exts, layers };
 		}
 
+		[[nodiscard]]
 		constexpr InstanceDesc enable_layers(std::span<const char*> l) const noexcept {
 			return InstanceDesc{ app_name, app_version, engine_name, engine_version, extensions, l };
 		}
@@ -96,7 +100,7 @@ namespace gx {
 
 	template<SurfaceImpl T>
 	struct SurfaceKhrExt {
-		constexpr static const char* ext_names[] = { ExtensionList::khr_surface, T::ext_impl_name };
+		constexpr static std::array<const char*, 2> ext_names = { ExtensionList::khr_surface, T::ext_impl_name };
 	
 		SurfaceKhrExt() noexcept = default;
 		
@@ -116,6 +120,7 @@ namespace gx {
 		SurfaceKhrExt(const SurfaceKhrExt&) = delete;
 		SurfaceKhrExt& operator=(const SurfaceKhrExt&) = delete;
 
+		[[nodiscard]]
 		VkSurfaceKHR get_surface(typename T::WindowHandle_t window, typename T::AppInstance_t app) noexcept;
 
 	protected:
@@ -131,7 +136,8 @@ namespace gx {
 		using WindowHandle_t = HWND;
 		using AppInstance_t = HINSTANCE;
 
-		static VkSurfaceKHR create_surface(WindowHandle_t window, AppInstance_t app) noexcept;
+		[[nodiscard]]
+		static VkSurfaceKHR create_surface(WindowHandle_t window, AppInstance_t app) noexcept {}
 	};
 
 	template<>
@@ -202,11 +208,13 @@ namespace gx {
 			return ret;
 		}
 
+		[[nodiscard]]
 		std::span<PhysicalDevice> enum_phys_devices() noexcept;
 
 	};
 
 	template<std::ranges::random_access_range Rng>
+	[[nodiscard]]
 	std::vector<usize> check_supported_extensions(Rng&& requested, InstanceInfo& info) noexcept {
 		return check_support(requested, info.supported_extensions, &VkExtensionProperties::extensionName,
 			[](const char* ext1, const char* ext2) noexcept {
@@ -215,6 +223,7 @@ namespace gx {
 	}
 
 	template<std::ranges::random_access_range Rng>
+	[[nodiscard]]
 	std::vector<usize> check_supported_layers(Rng&& requested, InstanceInfo& info) noexcept {
 		return check_support(requested, info.supported_layers, &VkLayerProperties::layerName,
 			[](const char* layer1, const char* layer2) noexcept {
@@ -223,6 +232,7 @@ namespace gx {
 	}
 
 	template<SurfaceImpl T>
+	[[nodiscard]]
 	VkSurfaceKHR SurfaceKhrExt<T>::get_surface(typename T::WindowHandle_t window, typename T::AppInstance_t app) noexcept {
 		if (surface_ == VK_NULL_HANDLE) {
 			surface_ = T::create_surface(window, app);
@@ -231,6 +241,7 @@ namespace gx {
 	}
 
 	template<Extension... Exts>
+	[[nodiscard]]
 	std::span<PhysicalDevice> Instance<Exts...>::enum_phys_devices() noexcept {
 		if (devices_.size() != 0) {
 			return devices_;

@@ -1,7 +1,7 @@
 #pragma once
 #include <type_traits>
 
-namespace meta // *запрещенная в России экстримистская организация
+namespace meta
 {
 	template<typename...>
 	struct List {};

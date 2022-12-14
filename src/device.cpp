@@ -11,7 +11,7 @@ namespace gx {
 		}
 	}
 
-	void gx::PhysicalDevice::fill_info_() {
+	void gx::PhysicalDevice::fill_info_() noexcept {
 		VkPhysicalDeviceProperties props{};
 		VkPhysicalDeviceMemoryProperties mem_props{};
 		vkGetPhysicalDeviceProperties(handle_, &props);

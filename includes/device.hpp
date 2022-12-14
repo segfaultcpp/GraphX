@@ -64,7 +64,7 @@ namespace gx {
 		eIntegratedGpu,
 	};
 
-	struct PhysicalDeviceInfo {
+	struct [[nodiscard]] PhysicalDeviceInfo {
 		PhysicalDeviceInfo() noexcept = default;
 
 		std::vector<MemoryInfo> memory_infos;
@@ -81,6 +81,7 @@ namespace gx {
 	};
 
 	template<std::ranges::random_access_range Rng>
+	[[nodiscard]]
 	std::vector<usize> check_supported_queues(Rng&& requested, const PhysicalDeviceInfo& info) noexcept {
 		return check_support(requested, info.queue_infos, std::identity{},
 			[](QueueInfo lhs, QueueInfo rhs) noexcept {
@@ -136,7 +137,7 @@ namespace gx {
 		}
 
 	private:
-		void fill_info_();
+		void fill_info_() noexcept;
 
 	};
 
@@ -202,7 +203,7 @@ namespace gx {
 	/*
 	* Owns VkDevice object and responsible for destroying it.
 	*/
-	class DeviceOwner {
+	class [[nodiscard]] DeviceOwner {
 	private:
 		VkDevice handle_ = VK_NULL_HANDLE;
 		VkPhysicalDevice underlying_device_ = VK_NULL_HANDLE;
@@ -225,6 +226,9 @@ namespace gx {
 		DeviceOwner(DeviceOwner&& rhs) noexcept
 			: handle_{ rhs.handle_ }
 			, underlying_device_{ rhs.underlying_device_ }
+			, graphics_qs_{ std::move(rhs.graphics_qs_) }
+			, compute_qs_{ std::move(rhs.compute_qs_) }
+			, transfer_qs_{ std::move(rhs.transfer_qs_) }
 		{
 			rhs.handle_ = VK_NULL_HANDLE;
 			rhs.underlying_device_ = VK_NULL_HANDLE;
@@ -234,6 +238,10 @@ namespace gx {
 			handle_ = rhs.handle_;
 			underlying_device_ = rhs.underlying_device_;
 
+			graphics_qs_ = std::move(rhs.graphics_qs_);
+			compute_qs_ = std::move(rhs.compute_qs_);
+			transfer_qs_ = std::move(rhs.transfer_qs_);
+
 			rhs.underlying_device_ = VK_NULL_HANDLE;
 			rhs.handle_ = VK_NULL_HANDLE;
 
@@ -242,6 +250,23 @@ namespace gx {
 
 		~DeviceOwner() noexcept {
 			destroy_device(handle_);
+		}
+
+	public:
+		template<Queue Q>
+		[[nodiscard]]
+		Q get_queue_by_index(usize index = 0) noexcept {
+			if constexpr (std::same_as<Q, GraphicsQueue>) {
+				return get_queue_by_index_(graphics_qs_, index);
+			}
+
+			if constexpr (std::same_as<Q, ComputeQueue>) {
+				return get_queue_by_index_(compute_qs_, index);
+			}
+
+			if constexpr (std::same_as<Q, TransferQueue>) {
+				return get_queue_by_index_(transfer_qs_, index);
+			}
 		}
 
 	public:
@@ -258,10 +283,24 @@ namespace gx {
 
 	private:
 		void init_queues_(std::span<QueueInfo> req_qs) noexcept;
+		
+		template<Queue Q>
+		[[nodiscard]]
+		Q get_queue_by_index_(std::vector<Q>& v, usize index) noexcept {
+			if (v.empty()) {
+				// TODO: panic!
+			}
+
+			if (index >= v.size()) {
+				// TODO: panic!
+			}
+
+			return std::move(v[index]);
+		}
 
 	};
 
-	class DeviceView {
+	class [[nodiscard]] DeviceView {
 		VkDevice handle_;
 		VkPhysicalDevice underlying_;
 

@@ -8,7 +8,7 @@ namespace utils {
 		public:
 			using RngIt = std::ranges::iterator_t<Rng>;
 			using difference_type = std::iter_difference_t<RngIt>;
-			using RngItRef = std::iterator_traits<RngIt>::reference;
+			using RngItRef = typename std::iterator_traits<RngIt>::reference;
 			using value_type = std::pair<std::size_t, RngItRef>;
 
 		private:

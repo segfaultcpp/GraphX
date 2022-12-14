@@ -112,10 +112,12 @@ namespace gx {
 		void submit(CmdCtx) noexcept {}
 
 	public:
+		[[nodiscard]]
 		VkQueue get_native_handle() const noexcept {
 			return queue_;
 		}
 
+		[[nodiscard]]
 		usize get_family_index() const noexcept {
 			return family_index_;
 		}

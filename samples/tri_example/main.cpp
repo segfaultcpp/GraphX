@@ -1,6 +1,8 @@
 #include <instance.hpp>
 #include <device.hpp>
 #include <types.hpp>
+#include <cmd_exec.hpp>
+
 #include <ranges>
 #include <array>
 
@@ -38,6 +40,8 @@ int main() {
 	};
 
 	auto device = filtered_devices.begin()->get_logical_device(device_desc);
+	auto gq = device->get_queue_by_index<gx::GraphicsQueue>();
+	auto tq = device->get_queue_by_index<gx::TransferQueue>();
 
 	return 0;
 }
