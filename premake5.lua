@@ -37,7 +37,7 @@ workspace "GraphX"
         buildoptions  "-fsanitize=address"
 
     filter { "configurations:ASan", "toolset:msc-v143" }
-        buildoptions  "/fsanitize=address -Zi"
+        buildoptions  "/fsanitize=address /Z7 /DEBUG"
 
     filter { "configurations:StaticAnalyzer", "toolset:msc-v143" }
         buildoptions "/analyze /analyze:plugin EspxEngine.dll"
