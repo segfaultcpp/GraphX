@@ -18,7 +18,9 @@ namespace fn {
 		requires std::is_invocable_r_v<bool, CompareFn, T, T>
 	constexpr auto compare(T&& value, CompareFn&& comp, Proj proj) noexcept {
 		return[v = std::forward<T>(value), f = std::forward<CompareFn>(comp), proj]
-		(const auto& element) noexcept(noexcept(CompareFn{}(std::declval<T>(), std::declval<T>()))) {
+		(const auto& element) noexcept(noexcept(std::invoke(std::declval<CompareFn>(), std::declval<T>(), std::declval<T>())))
+			requires meta::IsMember<decltype(element), Proj>
+		{
 			return std::invoke(f, std::invoke(proj, element), v);
 		};
 	}

@@ -82,12 +82,8 @@ namespace gx {
 	inline constexpr bool is_extension_v = false;
 
 	template<typename T>
-	concept Extension = is_extension_v<T> && requires {
-		std::begin(T::ext_names);
-		std::end(T::ext_names);
-		std::size(T::ext_names);
-	};
-
+	concept Extension = is_extension_v<T> && rng::sized_range<decltype(T::ext_names)>;
+	
 	template<typename T>
 	concept ExtImpl = is_extension_v<T> && requires {
 		T::ext_impl_name;
@@ -96,7 +92,6 @@ namespace gx {
 	template<typename T>
 	concept SurfaceImpl = ExtImpl<T> && requires {
 		{ T::create_surface(std::declval<typename T::WindowHandle_t>(), std::declval<typename T::AppInstance_t>()) } -> std::same_as<VkSurfaceKHR>;
-		//{ &T::create_surface } -> std::same_as<VkSurfaceKHR(*)(typename T::WindowHandle_t, typename T::AppInstance_t) noexcept>;
 	};
 
 	template<SurfaceImpl T>
@@ -141,10 +136,14 @@ namespace gx {
 
 	template<>
 	inline constexpr bool is_extension_v<SurfaceWin32KhrExt> = true;
+
+	static_assert(SurfaceImpl<SurfaceWin32KhrExt>);
 #endif // GX_WIN64
 
 	template<SurfaceImpl T>
 	inline constexpr bool is_extension_v<SurfaceKhrExt<T>> = true;
+
+	static_assert(Extension<SurfaceKhrExt<SurfaceWin32KhrExt>>);
 
 	inline void destroy_instance(VkInstance instance) noexcept {
 		if (instance != VK_NULL_HANDLE) {

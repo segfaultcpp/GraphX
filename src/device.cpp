@@ -78,7 +78,7 @@ namespace gx {
 			else if (q_props[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
 			{
 				info_.queue_infos.push_back(QueueInfo{
-					.type = QueueTypes::eCopy,
+					.type = QueueTypes::eTransfer,
 					.index = i,
 					.count = q_props[i].queueCount
 					});
@@ -110,7 +110,7 @@ namespace gx {
 			}
 		}
 
-		const auto& req_qs = desc.requested_queues;
+		auto& req_qs = desc.requested_queues;
 		std::vector<VkDeviceQueueCreateInfo> q_infos(req_qs.size());
 
 		std::vector<f32> priors(32u, 1.f);
@@ -121,6 +121,7 @@ namespace gx {
 				.queueCount = static_cast<u32>(req_qs[i].count),
 				.pQueuePriorities = priors.data()
 			};
+			req_qs[i].index = q_infos[i].queueFamilyIndex;
 		}
 		
 		VkPhysicalDeviceFeatures features{};
@@ -136,9 +137,36 @@ namespace gx {
 		VkResult res = vkCreateDevice(handle_, &device_info, nullptr, &device);
 
 		if (res == VK_SUCCESS) {
-			return DeviceOwner{ device, handle_ };
+			return DeviceOwner{ device, handle_, req_qs };
 		}
 
 		return std::nullopt;
+	}
+
+	void DeviceOwner::init_queues_(std::span<QueueInfo> req_qs) noexcept {
+		auto fill_vector = [device = this->handle_](auto& v, usize count, usize index) noexcept {
+			for (usize i : std::views::iota(0u, count)) {
+				VkQueue q = VK_NULL_HANDLE;
+				vkGetDeviceQueue(device, static_cast<u32>(index), static_cast<u32>(i), &q);
+				v.emplace_back(q, index);
+			}
+		};
+
+		for (const auto& info : req_qs) {
+			switch (info.type)
+			{
+			case QueueTypes::eGraphics:
+				fill_vector(graphics_qs_, info.count, info.index);
+				break;
+
+			case QueueTypes::eCompute:
+				fill_vector(compute_qs_, info.count, info.index);
+				break;
+
+			case QueueTypes::eTransfer:
+				fill_vector(transfer_qs_, info.count, info.index);
+				break;
+			}
+		}
 	}
 }

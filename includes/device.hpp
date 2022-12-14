@@ -8,6 +8,7 @@
 
 #include "types.hpp"
 #include "utils.hpp"
+#include "cmd_exec.hpp"
 
 namespace gx {
 	class DeviceOwner;
@@ -45,7 +46,7 @@ namespace gx {
 
 	enum class QueueTypes {
 		eGraphics = 0,
-		eCopy,
+		eTransfer,
 		eCompute,
 	};
 
@@ -169,8 +170,8 @@ namespace gx {
 		return request_queue(QueueTypes::eGraphics);
 	}
 
-	constexpr auto request_copy_queue() noexcept {
-		return request_queue(QueueTypes::eCopy);
+	constexpr auto request_transfer_queue() noexcept {
+		return request_queue(QueueTypes::eTransfer);
 	}
 
 	constexpr auto request_compute_queue() noexcept {
@@ -205,13 +206,18 @@ namespace gx {
 	private:
 		VkDevice handle_ = VK_NULL_HANDLE;
 		VkPhysicalDevice underlying_device_ = VK_NULL_HANDLE;
+		std::vector<GraphicsQueue> graphics_qs_;
+		std::vector<ComputeQueue> compute_qs_;
+		std::vector<TransferQueue> transfer_qs_;
 
 	public:
 		DeviceOwner() noexcept = default;
-		DeviceOwner(VkDevice device, VkPhysicalDevice underlying) noexcept
+		DeviceOwner(VkDevice device, VkPhysicalDevice underlying, std::span<QueueInfo> req_qs) noexcept
 			: handle_{ device }
 			, underlying_device_{ underlying }
-		{}
+		{
+			init_queues_(req_qs);
+		}
 
 		DeviceOwner(const DeviceOwner& rhs) = delete;
 		DeviceOwner& operator=(const DeviceOwner& rhs) = delete;
@@ -249,6 +255,9 @@ namespace gx {
 			handle_ = VK_NULL_HANDLE;
 			return ret;
 		}
+
+	private:
+		void init_queues_(std::span<QueueInfo> req_qs) noexcept;
 
 	};
 
