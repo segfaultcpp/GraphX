@@ -293,7 +293,7 @@ namespace gx {
 
 			Q ret = std::move(v.back());
 			v.pop_back();
-			return std::move(ret);
+			return ret;
 		}
 	};
 
