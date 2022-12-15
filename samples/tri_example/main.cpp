@@ -40,8 +40,8 @@ int main() {
 	};
 
 	auto device = filtered_devices.begin()->get_logical_device(device_desc);
-	auto gq = device->get_queue_by_index<gx::GraphicsQueue>();
-	auto tq = device->get_queue_by_index<gx::TransferQueue>();
+	auto gq = device->pop_back_queue<gx::GraphicsQueue>();
+	auto tq = device->pop_back_queue<gx::TransferQueue>();
 
 	return 0;
 }

@@ -255,17 +255,17 @@ namespace gx {
 	public:
 		template<Queue Q>
 		[[nodiscard]]
-		Q get_queue_by_index(usize index = 0) noexcept {
+		Q pop_back_queue() noexcept {
 			if constexpr (std::same_as<Q, GraphicsQueue>) {
-				return get_queue_by_index_(graphics_qs_, index);
+				return pop_back_queue_(graphics_qs_);
 			}
 
 			if constexpr (std::same_as<Q, ComputeQueue>) {
-				return get_queue_by_index_(compute_qs_, index);
+				return pop_back_queue_(compute_qs_);
 			}
 
 			if constexpr (std::same_as<Q, TransferQueue>) {
-				return get_queue_by_index_(transfer_qs_, index);
+				return pop_back_queue_(transfer_qs_);
 			}
 		}
 
@@ -286,18 +286,15 @@ namespace gx {
 		
 		template<Queue Q>
 		[[nodiscard]]
-		Q get_queue_by_index_(std::vector<Q>& v, usize index) noexcept {
+		Q pop_back_queue_(std::vector<Q>& v) noexcept {
 			if (v.empty()) {
 				// TODO: panic!
 			}
 
-			if (index >= v.size()) {
-				// TODO: panic!
-			}
-
-			return std::move(v[index]);
+			Q ret = std::move(v.back());
+			v.pop_back();
+			return std::move(ret);
 		}
-
 	};
 
 	class [[nodiscard]] DeviceView {
