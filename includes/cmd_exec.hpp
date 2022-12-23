@@ -5,9 +5,9 @@
 #include <tuple>
 
 #include <vulkan/vulkan.h>
-#include <misc/meta.hpp>
 
-#include "types.hpp"
+#include <misc/meta.hpp>
+#include <misc/types.hpp>
 
 namespace gx {
 	class CmdListBase {

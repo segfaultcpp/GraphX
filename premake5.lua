@@ -23,6 +23,7 @@ workspace "GraphX"
     filter "configurations:Release"
         optimize "ON"
         defines "GX_RELEASE"
+        symbols "OFF"
 
     --tested only on msvc v19.34
     filter "configurations:ASan"

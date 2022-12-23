@@ -4,11 +4,15 @@
 #include <optional>
 
 #include <vulkan/vulkan.h>
-#include <misc/functional.hpp>
 
-#include "types.hpp"
+#include <misc/functional.hpp>
+#include <misc/types.hpp>
+#include <misc/assert.hpp>
+#include <misc/result.hpp>
+
 #include "utils.hpp"
 #include "cmd_exec.hpp"
+#include "error.hpp"
 
 namespace gx {
 	class DeviceOwner;
@@ -130,7 +134,7 @@ namespace gx {
 		}
 
 	public:
-		std::optional<DeviceOwner> get_logical_device(DeviceDesc desc) noexcept;
+		eh::Result<DeviceOwner, ErrorCode> get_logical_device(DeviceDesc desc) noexcept;
 
 		const PhysicalDeviceInfo& get_info() const noexcept {
 			return info_;
@@ -142,7 +146,7 @@ namespace gx {
 	};
 
 	constexpr auto enum_phys_device_infos() noexcept {
-		return rng::views::transform([](const PhysicalDevice& device) noexcept -> decltype(auto) {
+		return std::ranges::views::transform([](const PhysicalDevice& device) noexcept -> decltype(auto) {
 			return device.get_info();
 		});
 	}
@@ -150,7 +154,7 @@ namespace gx {
 	constexpr auto min_vram_size(usize value) noexcept {
 		return [value](const PhysicalDevice& phys_device) noexcept {
 			const auto& info = phys_device.get_info();
-			auto it = rng::find_if(info.memory_infos,
+			auto it = std::ranges::find_if(info.memory_infos,
 				[](const auto& el) {
 					return  (el.memory_properties & MemoryProperties::eDeviceLocal) != 0 &&
 							(el.memory_properties & MemoryProperties::eHostVisible) == 0;
@@ -163,7 +167,7 @@ namespace gx {
 	constexpr auto request_queue(QueueTypes type) noexcept {
 		return [type](const PhysicalDevice& phys_device) noexcept {
 			const auto& info = phys_device.get_info();
-			return rng::find(info.queue_infos, type, &QueueInfo::type) != info.queue_infos.end();
+			return std::ranges::find(info.queue_infos, type, &QueueInfo::type) != info.queue_infos.end();
 		};
 	}
 
@@ -288,7 +292,7 @@ namespace gx {
 		[[nodiscard]]
 		Q pop_back_queue_(std::vector<Q>& v) noexcept {
 			if (v.empty()) {
-				// TODO: panic!
+				EH_PANIC("Device doesn't contain requested queue!");
 			}
 
 			Q ret = std::move(v.back());

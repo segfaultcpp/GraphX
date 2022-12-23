@@ -1,6 +1,6 @@
 #pragma once
-#include "types.hpp"
 #include "utils.hpp"
+#include "error.hpp"
 
 #include <string_view>
 #include <optional>
@@ -9,8 +9,12 @@
 #include <array>
 #include <ranges>
 #include <iterator>
+#include <format>
 
 #include <vulkan/vulkan.h>
+
+#include <misc/assert.hpp>
+#include <misc/types.hpp>
 
 namespace gx {
 	struct Version {
@@ -86,7 +90,7 @@ namespace gx {
 	inline constexpr bool is_extension_v = false;
 
 	template<typename T>
-	concept Extension = is_extension_v<T> && rng::sized_range<decltype(T::ext_names)>;
+	concept Extension = is_extension_v<T> && std::ranges::sized_range<decltype(T::ext_names)>;
 	
 	template<typename T>
 	concept ExtImpl = is_extension_v<T> && requires {
@@ -253,36 +257,44 @@ namespace gx {
 		vkEnumeratePhysicalDevices(instance_, &device_count, phys_devices.data());
 
 		devices_.resize(device_count);
-		rng::copy(phys_devices, devices_.begin());
+		std::ranges::copy(phys_devices, devices_.begin());
 
 		return devices_;
 	}
 
 	template<Extension... Exts>
 	[[nodiscard]]
-	std::optional<Instance<Exts...>> make_instance(const InstanceDesc& desc) noexcept {
+	eh::Result<Instance<Exts...>, ErrorCode> make_instance(const InstanceDesc& desc) noexcept {
 		InstanceInfo info;
 		std::vector<usize> idxs;
 
 		constexpr std::array required_exts = [](auto&&... args) {
 			constexpr usize size = (0 + ... + std::size(Exts::ext_names));
 			std::array<const char*, size> ret = {}; usize i = 0;
-			((rng::copy(std::begin(args) + i, std::begin(args) + std::size(args), ret.begin()), ++i), ...);
+			((std::ranges::copy(std::begin(args) + i, std::begin(args) + std::size(args), ret.begin()), ++i), ...);
 			return ret;
 		}(Exts::ext_names...);
 
 		idxs = check_supported_extensions(required_exts, info);
 
 		if (idxs.size() != 0) {
-			// TODO: error message
-			return std::nullopt;
+			std::string unsupported_exts;
+			for (usize i : idxs) {
+				unsupported_exts += std::format("{} ", required_exts[i]);
+			}
+			EH_ERROR_MSG(std::format("Some extensions are not supported ({})", unsupported_exts));
+			return eh::Error{ ErrorCode::eExtensionNotPresent };
 		}
 
 		idxs = check_supported_layers(desc.layers, info);
 
 		if (idxs.size() != 0) {
-			// TODO: error message
-			return std::nullopt;
+			std::string unsupported_layers;
+			for (usize i : idxs) {
+				unsupported_layers += std::format("{} ", desc.layers[i]);
+			}
+			EH_ERROR_MSG(std::format("Some layers are not supported ({})", unsupported_layers));
+			return eh::Error{ ErrorCode::eLayerNotPresent };
 		}
 
 		VkApplicationInfo app_info{
@@ -310,6 +322,6 @@ namespace gx {
 			return Instance<Exts...>{ instance, std::move(info) };
 		}
 		
-		return std::nullopt;
+		return eh::Error{ convert_vk_result(res) };
 	}
 }

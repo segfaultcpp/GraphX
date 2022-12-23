@@ -2,7 +2,7 @@
 
 namespace gx {
 	std::optional<usize> PhysicalDeviceInfo::get_queue_index(QueueTypes type) noexcept {
-		auto it = rng::find(queue_infos, type, &QueueInfo::type);
+		auto it = std::ranges::find(queue_infos, type, &QueueInfo::type);
 		
 		if (it != queue_infos.end()) {
 			return (*it).index;
@@ -18,7 +18,7 @@ namespace gx {
 		vkGetPhysicalDeviceMemoryProperties(handle_, &mem_props);
 
 		info_.memory_infos.resize(mem_props.memoryTypeCount);
-		for (usize i : rng::views::iota(0u, mem_props.memoryTypeCount)) {
+		for (usize i : std::ranges::views::iota(0u, mem_props.memoryTypeCount)) {
 			auto mem_type = mem_props.memoryTypes[i];
 			
 			if ((mem_type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0) {
@@ -56,7 +56,7 @@ namespace gx {
 		
 		info_.queue_infos.clear();
 
-		for (usize i : rng::views::iota(0u, q_prop_count))
+		for (usize i : std::ranges::views::iota(0u, q_prop_count))
 		{
 			if (q_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			{
@@ -93,19 +93,23 @@ namespace gx {
 		}
 	}
 
-	std::optional<DeviceOwner> PhysicalDevice::get_logical_device(DeviceDesc desc) noexcept {
+	eh::Result<DeviceOwner, ErrorCode> PhysicalDevice::get_logical_device(DeviceDesc desc) noexcept {
 		auto idxs = check_supported_queues(desc.requested_queues, info_);
 		
 		if (idxs.size() > 0) {
-			// TODO: error msg
-			return std::nullopt;
+			std::string unsupported_qs;
+			for (usize i : idxs) {
+				unsupported_qs += std::format("{} ", i);
+			}
+			EH_ERROR_MSG(std::format("Some requsted queues are not supported (indices: {})", unsupported_qs));
+			return eh::Error{ ErrorCode::eQueueNotPresent };
 		}
 
 		// TODO: additional validation
 		for (auto& req_q : desc.requested_queues) {
-			auto it = rng::find(info_.queue_infos, req_q.type, &QueueInfo::type);
+			auto it = std::ranges::find(info_.queue_infos, req_q.type, &QueueInfo::type);
 			if (req_q.count > it->count) {
-				// TODO: error msg
+				EH_ERROR_MSG(std::format("Requested {} but only {} presented", req_q.count , it->count));
 				req_q.count = it->count;
 			}
 		}
@@ -114,7 +118,7 @@ namespace gx {
 		std::vector<VkDeviceQueueCreateInfo> q_infos(req_qs.size());
 
 		std::vector<f32> priors(32u, 1.f);
-		for (usize i : rng::views::iota(0u, q_infos.size())) {
+		for (usize i : std::ranges::views::iota(0u, q_infos.size())) {
 			q_infos[i] = VkDeviceQueueCreateInfo {
 				.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
 				.queueFamilyIndex = static_cast<u32>(info_.get_queue_index(req_qs[i].type).value()),
@@ -140,7 +144,7 @@ namespace gx {
 			return DeviceOwner{ device, handle_, req_qs };
 		}
 
-		return std::nullopt;
+		return eh::Error{ convert_vk_result(res) };
 	}
 
 	void DeviceOwner::init_queues_(std::span<QueueInfo> req_qs) noexcept {
