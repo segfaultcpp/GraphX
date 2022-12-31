@@ -1,6 +1,7 @@
 #pragma once
 #include "utils.hpp"
 #include "error.hpp"
+#include "object.hpp"
 
 #include <string_view>
 #include <optional>
@@ -155,67 +156,51 @@ namespace gx {
 
 	static_assert(Extension<SurfaceKhrExt<SurfaceWin32KhrExt>>);
 
-	inline void destroy_instance(VkInstance instance) noexcept {
-		if (instance != VK_NULL_HANDLE) {
-			// TODO: global allocator for allocating and deallocating vk objects.
-			vkDestroyInstance(instance, nullptr);
-		}
-	}
-
 	class PhysicalDevice;
 
 	template<Extension... Exts>
-	class Instance : public Exts... {
-		VkInstance instance_ = VK_NULL_HANDLE;
-		InstanceInfo info_;
+	class Instance : public ObjectOwner<VkInstance>, Exts... {
 		std::vector<PhysicalDevice> devices_;
 
 	public:
+		using Base = ObjectOwner<VkInstance>;
+		using ObjectType = VkInstance;
+
+	public:
 		Instance() noexcept = default;
-		Instance(VkInstance inst, InstanceInfo&& info) noexcept
-			: instance_{ inst }
-			, info_{ std::move(info) }
+		Instance(VkInstance inst) noexcept
+			: Base{ inst }
 		{}
 
-		Instance(const Instance&) = delete;
-		Instance& operator=(const Instance&) = delete;
-
 		Instance(Instance&& rhs) noexcept  
-			: instance_{ rhs.instance_ }
-			, info_{ std::move(rhs.info_) }
-		{
-			rhs.instance_ = VK_NULL_HANDLE;
-		}
+			: Base{ std::move(rhs) }
+			, devices_{ std::move(rhs.devices_) }
+		{}
 
 		Instance& operator=(Instance&& rhs) noexcept {
-			instance_ = rhs.instance_;
-			rhs.instance_ = VK_NULL_HANDLE;
-			
-			info_ = std::move(rhs.info_);
+			static_cast<Base&>(*this) = std::move(rhs);
+			devices_ = std::move(rhs.devices_);
 
 			return *this;
 		}
 
-		~Instance() noexcept {
-			destroy_instance(instance_);
-		}
+		~Instance() noexcept = default;
 
 	public:
-		/*
-		* WARNING: Unsafe
-		* Moves out ownership to caller. The caller must manage this instance themselves.
-		*/
-		[[nodiscard]]
-		VkInstance unwrap_native_handle() noexcept {
-			VkInstance ret = instance_;
-			instance_ = VK_NULL_HANDLE;
-			return ret;
-		}
-
 		[[nodiscard]]
 		std::span<PhysicalDevice> enum_phys_devices() noexcept;
 
 	};
+
+	namespace unsafe {
+		template<>
+		inline void destroy<VkInstance>(VkInstance instance) noexcept {
+			if (instance != VK_NULL_HANDLE) {
+				// TODO: global allocator for allocating and deallocating vk objects.
+				vkDestroyInstance(instance, nullptr);
+			}
+		}
+	}
 
 	template<std::ranges::random_access_range Rng>
 	[[nodiscard]]
@@ -251,10 +236,13 @@ namespace gx {
 			return devices_;
 		}
 
+		EH_ASSERT(this->handle_ != VK_NULL_HANDLE, "VkInstance must be a valid handle");
+
 		u32 device_count = 0;
-		vkEnumeratePhysicalDevices(instance_, &device_count, nullptr);
+		vkEnumeratePhysicalDevices(this->handle_, &device_count, nullptr);
+		EH_ASSERT(device_count > 0u, "There is no supported devices");
 		std::vector<VkPhysicalDevice> phys_devices(device_count);
-		vkEnumeratePhysicalDevices(instance_, &device_count, phys_devices.data());
+		vkEnumeratePhysicalDevices(this->handle_, &device_count, phys_devices.data());
 
 		devices_.resize(device_count);
 		std::ranges::copy(phys_devices, devices_.begin());
@@ -319,7 +307,7 @@ namespace gx {
 		VkResult res = vkCreateInstance(&inst_create_info, nullptr, &instance);
 
 		if (res == VK_SUCCESS) {
-			return Instance<Exts...>{ instance, std::move(info) };
+			return Instance<Exts...>{ instance };
 		}
 		
 		return eh::Error{ convert_vk_result(res) };

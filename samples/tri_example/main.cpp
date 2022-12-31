@@ -18,7 +18,7 @@ int main() {
 		.enable_layers(layers);
 
 	auto instance = gx::make_instance<gx::SurfaceKhrExt<gx::SurfaceWin32KhrExt>>(inst_desc).unwrap();
-	
+
 	auto filtered_devices = instance.enum_phys_devices()
 		| std::ranges::views::filter(gx::min_vram_size(gx::gb_to_bytes(1)))
 		| std::ranges::views::filter(gx::request_graphics_queue())

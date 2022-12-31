@@ -13,6 +13,7 @@
 #include "utils.hpp"
 #include "cmd_exec.hpp"
 #include "error.hpp"
+#include "object.hpp"
 
 namespace gx {
 	class DeviceOwner;
@@ -92,21 +93,24 @@ namespace gx {
 				return lhs.type == rhs.type;
 			});
 	}
-
+	
 	/*
 	* Represents VkPhysicalDevice. Managed by gx::Instance, so can be copied.
 	* Used for obtaining information about underlying physical device (graphics adapter) 
 	* and for creating logical device (gx::Device).
 	*/
-	class PhysicalDevice {
-		VkPhysicalDevice handle_ = VK_NULL_HANDLE;
+	class PhysicalDevice : public ManagedObject<::gx::Copyable, VkPhysicalDevice> {
 		PhysicalDeviceInfo info_;
+
+	public:
+		using Base = ManagedObject<::gx::Copyable, VkPhysicalDevice>;
+		using ObjectType = VkPhysicalDevice;
 
 	public:
 		PhysicalDevice() noexcept = default;
 		
 		PhysicalDevice(VkPhysicalDevice device) noexcept
-			: handle_{ device }
+			: Base{ device }
 			, info_{}
 		{
 			fill_info_();
@@ -116,16 +120,12 @@ namespace gx {
 		PhysicalDevice& operator=(const PhysicalDevice&) = default;
 
 		PhysicalDevice(PhysicalDevice&& rhs) noexcept
-			: handle_{ rhs.handle_ }
+			: Base{ std::move(rhs) }
 			, info_{ std::move(rhs.info_) }
-		{
-			rhs.handle_ = VK_NULL_HANDLE;
-			rhs.info_ = {};
-		}
+		{}
 
 		PhysicalDevice& operator=(PhysicalDevice&& rhs) noexcept {
-			handle_ = rhs.handle_;
-			rhs.handle_ = VK_NULL_HANDLE;
+			static_cast<Base&>(*this) = std::move(rhs);
 
 			info_ = std::move(rhs.info_);
 			rhs.info_ = {};
@@ -197,64 +197,51 @@ namespace gx {
 		return request_phys_device_type(PhysicalDeviceType::eIntegratedGpu);
 	}
 
-	inline void destroy_device(VkDevice device) noexcept {
-		if (device != VK_NULL_HANDLE) {
-			// TODO: glob allocator
-			vkDestroyDevice(device, nullptr);
-		}
-	}
-
 	/*
 	* Owns VkDevice object and responsible for destroying it.
 	*/
-	class [[nodiscard]] DeviceOwner {
+	class [[nodiscard]] DeviceOwner : public ObjectOwner<VkDevice> {
 	private:
-		VkDevice handle_ = VK_NULL_HANDLE;
 		VkPhysicalDevice underlying_device_ = VK_NULL_HANDLE;
 		std::vector<GraphicsQueue> graphics_qs_;
 		std::vector<ComputeQueue> compute_qs_;
 		std::vector<TransferQueue> transfer_qs_;
 
 	public:
+		using Base = ObjectOwner<VkDevice>;
+		using ObjectType = VkDevice;
+
+	public:
 		DeviceOwner() noexcept = default;
 		DeviceOwner(VkDevice device, VkPhysicalDevice underlying, std::span<QueueInfo> req_qs) noexcept
-			: handle_{ device }
+			: Base{ device }
 			, underlying_device_{ underlying }
 		{
 			init_queues_(req_qs);
 		}
 
-		DeviceOwner(const DeviceOwner& rhs) = delete;
-		DeviceOwner& operator=(const DeviceOwner& rhs) = delete;
-
 		DeviceOwner(DeviceOwner&& rhs) noexcept
-			: handle_{ rhs.handle_ }
+			: Base{ std::move(rhs) }
 			, underlying_device_{ rhs.underlying_device_ }
 			, graphics_qs_{ std::move(rhs.graphics_qs_) }
 			, compute_qs_{ std::move(rhs.compute_qs_) }
 			, transfer_qs_{ std::move(rhs.transfer_qs_) }
-		{
-			rhs.handle_ = VK_NULL_HANDLE;
-			rhs.underlying_device_ = VK_NULL_HANDLE;
-		}
+		{}
 
 		DeviceOwner& operator=(DeviceOwner&& rhs) noexcept {
-			handle_ = rhs.handle_;
-			underlying_device_ = rhs.underlying_device_;
+			static_cast<Base&>(*this) = std::move(rhs);
 
 			graphics_qs_ = std::move(rhs.graphics_qs_);
 			compute_qs_ = std::move(rhs.compute_qs_);
 			transfer_qs_ = std::move(rhs.transfer_qs_);
 
+			underlying_device_ = rhs.underlying_device_;
 			rhs.underlying_device_ = VK_NULL_HANDLE;
-			rhs.handle_ = VK_NULL_HANDLE;
 
 			return *this;
 		}
 
-		~DeviceOwner() noexcept {
-			destroy_device(handle_);
-		}
+		~DeviceOwner() noexcept = default;
 
 	public:
 		template<Queue Q>
@@ -273,18 +260,6 @@ namespace gx {
 			}
 		}
 
-	public:
-		/*
-		* WARNING: Unsafe
-		* Moves out ownership to caller. The caller must manage this device themselves.
-		*/
-		[[nodiscard]]
-		VkDevice unwrap_native_handle() noexcept {
-			VkDevice ret = handle_;
-			handle_ = VK_NULL_HANDLE;
-			return ret;
-		}
-
 	private:
 		void init_queues_(std::span<QueueInfo> req_qs) noexcept;
 		
@@ -301,19 +276,27 @@ namespace gx {
 		}
 	};
 
-	class [[nodiscard]] DeviceView {
-		VkDevice handle_;
+	namespace unsafe {
+		template<>
+		inline void destroy<VkDevice>(VkDevice device) noexcept {
+			if (device != VK_NULL_HANDLE) {
+				// TODO: glob allocator
+				vkDestroyDevice(device, nullptr);
+			}
+		}
+	}
+
+	class [[nodiscard]] DeviceView : public ObjectView<VkDevice> {
 		VkPhysicalDevice underlying_;
 
 	public:
-		DeviceView(VkDevice logical_device, VkPhysicalDevice underlying_phys_device) noexcept 
-			: handle_{ logical_device }
-			, underlying_{ underlying_phys_device }
-		{}
+		using Base = ObjectView<VkDevice>;
+		using ObjectType = VkDevice;
 
-		DeviceView(const DeviceView& rhs) noexcept 
-			: handle_{ rhs.handle_ }
-			, underlying_ { rhs.underlying_ }
+	public:
+		DeviceView(VkDevice logical_device, VkPhysicalDevice underlying_phys_device) noexcept 
+			: Base{ logical_device }
+			, underlying_{ underlying_phys_device }
 		{}
 	};
 }

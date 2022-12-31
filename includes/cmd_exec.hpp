@@ -9,20 +9,26 @@
 #include <misc/meta.hpp>
 #include <misc/types.hpp>
 
+#include "object.hpp"
+
 namespace gx {
-	class CmdListBase {
-	protected:
-		VkCommandBuffer buffer_ = VK_NULL_HANDLE;
+	class CmdListBase : public ManagedObject<::gx::Copyable, VkCommandBuffer> {
+	public:
+		using Base = ManagedObject<::gx::Copyable, VkCommandBuffer>;
+		using ObjectType = VkCommandBuffer;
 
 	public:
 		CmdListBase() noexcept = default;
 
 		CmdListBase(VkCommandBuffer cmd) noexcept 
-			: buffer_{ cmd } 
+			: Base{ cmd } 
 		{}
 
 		CmdListBase(const CmdListBase&) noexcept = default;
 		CmdListBase& operator=(const CmdListBase&) noexcept = default;
+
+		CmdListBase(CmdListBase&&) noexcept = default;
+		CmdListBase& operator=(CmdListBase&&) noexcept = default;
 	};
 
 	template<typename T>
@@ -74,30 +80,31 @@ namespace gx {
 	class CommandPoolFactory {};
 
 	template<typename CmdCtx>
-	struct QueueBase {
+	struct QueueBase : public ManagedObject<::gx::MoveOnly, VkQueue> {
+	public:
+		using Base = ManagedObject<::gx::MoveOnly, VkQueue>;
+		using ObjectType = VkQueue;
+
 	protected:
-		VkQueue queue_ = VK_NULL_HANDLE;
 		usize family_index_ = static_cast<usize>(~0u);
 
 	public:
 		QueueBase() noexcept = default;
 
 		QueueBase(VkQueue q, usize index) noexcept
-			: queue_{ q }
+			: Base{ q }
 			, family_index_{ index }
 		{}
 
 		QueueBase(QueueBase&& rhs) noexcept
-			: queue_{ rhs.queue_ }
+			: Base{ std::move(rhs) }
 			, family_index_{ rhs.family_index_ }
 		{
-			rhs.queue_ = VK_NULL_HANDLE;
 			rhs.family_index_ = static_cast<usize>(~0u);
 		}
 
 		QueueBase& operator=(QueueBase&& rhs) noexcept {
-			queue_ = rhs.queue_;
-			rhs.queue_ = VK_NULL_HANDLE;
+			static_cast<Base&>(*this) = std::move(rhs);
 
 			family_index_ = rhs.family_index_;
 			rhs.family_index_ = static_cast<usize>(~0u);
@@ -105,18 +112,10 @@ namespace gx {
 			return *this;
 		}
 
-		QueueBase(const QueueBase&) = delete;
-		QueueBase& operator=(const QueueBase&) = delete;
-
 	public:
 		void submit(CmdCtx) noexcept {}
 
 	public:
-		[[nodiscard]]
-		VkQueue get_native_handle() const noexcept {
-			return queue_;
-		}
-
 		[[nodiscard]]
 		usize get_family_index() const noexcept {
 			return family_index_;

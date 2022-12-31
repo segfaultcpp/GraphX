@@ -7,7 +7,7 @@ workspace "GraphX"
     architecture "x86_64"
     includedirs { "3rd_party/includes", "includes/" }
     libdirs { "3rd_party/libs" }
-    
+
     filter "platforms:Win64"
         system "windows"
         defines "GX_WIN64"
