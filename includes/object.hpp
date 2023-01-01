@@ -4,8 +4,6 @@
 
 #include <vulkan/vulkan.h>
 
-#include "unsafe.hpp"
-
 namespace gx {
 	template<typename T>
 	concept Wrapper = requires {
@@ -73,8 +71,15 @@ namespace gx {
 		~Copyable() noexcept = default;
 	};
 
-	template<typename T>
+	namespace unsafe {
+		template<typename W>
+		struct ObjectOwnerTrait;
+	}
+
+	template<typename CRTP, typename T>
 	class ObjectOwner : public MoveOnly<T> {
+		friend unsafe::ObjectOwnerTrait<CRTP>;
+
 	public:
 		ObjectOwner() noexcept = default;
 
@@ -86,8 +91,14 @@ namespace gx {
 		ObjectOwner& operator=(ObjectOwner&&) noexcept = default;
 
 		~ObjectOwner() noexcept {
-			unsafe::destroy(this->handle_);
+			destroy();
 		}
+
+	protected:
+		void destroy() noexcept {
+			unsafe::ObjectOwnerTrait<CRTP>::destroy(*reinterpret_cast<CRTP*>(this));
+		}
+
 	};
 
 	template<template<typename> typename OwnershipPolicy, typename T>

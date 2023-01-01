@@ -1,7 +1,9 @@
 #include <device.hpp>
 
 namespace gx {
-	std::optional<usize> PhysicalDeviceInfo::get_queue_index(QueueTypes type) noexcept {
+	std::map<VkPhysicalDevice, PhysicalDeviceInfo> PhysicalDevice::infos_{};
+
+	std::optional<usize> PhysicalDeviceInfo::get_queue_index(QueueTypes type) const noexcept {
 		auto it = std::ranges::find(queue_infos, type, &QueueInfo::type);
 		
 		if (it != queue_infos.end()) {
@@ -17,36 +19,38 @@ namespace gx {
 		vkGetPhysicalDeviceProperties(handle_, &props);
 		vkGetPhysicalDeviceMemoryProperties(handle_, &mem_props);
 
-		info_.memory_infos.resize(mem_props.memoryTypeCount);
+		PhysicalDeviceInfo info;
+
+		info.memory_infos.resize(mem_props.memoryTypeCount);
 		for (usize i : std::ranges::views::iota(0u, mem_props.memoryTypeCount)) {
 			auto mem_type = mem_props.memoryTypes[i];
 			
 			if ((mem_type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0) {
-				info_.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eDeviceLocal);
+				info.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eDeviceLocal);
 			}
 			if ((mem_type.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0) {
-				info_.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eHostVisible);
+				info.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eHostVisible);
 			}
 			if ((mem_type.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0) {
-				info_.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eHostCoherent);
+				info.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eHostCoherent);
 			}
 
-			info_.memory_infos[i].budget = mem_props.memoryHeaps[mem_type.heapIndex].size;
+			info.memory_infos[i].budget = mem_props.memoryHeaps[mem_type.heapIndex].size;
 		}
 
-		info_.device_name = props.deviceName;
+		info.device_name = props.deviceName;
 
 		if (props.vendorID == 0x1022u || props.vendorID == 0x1002u)
 		{
-			info_.vendor = VendorType::eAmd;
+			info.vendor = VendorType::eAmd;
 		}
 		else if (props.vendorID == 0x10DEu)
 		{
-			info_.vendor = VendorType::eNvidia;
+			info.vendor = VendorType::eNvidia;
 		}
 		else if (props.vendorID == 8086u)
 		{
-			info_.vendor = VendorType::eIntel;
+			info.vendor = VendorType::eIntel;
 		}
 
 		u32 q_prop_count = 0;
@@ -54,13 +58,13 @@ namespace gx {
 		std::vector<VkQueueFamilyProperties> q_props(q_prop_count);
 		vkGetPhysicalDeviceQueueFamilyProperties(handle_, &q_prop_count, q_props.data());
 		
-		info_.queue_infos.clear();
+		info.queue_infos.clear();
 
 		for (usize i : std::ranges::views::iota(0u, q_prop_count))
 		{
 			if (q_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			{
-				info_.queue_infos.push_back(QueueInfo{
+				info.queue_infos.push_back(QueueInfo{
 					.type = QueueTypes::eGraphics,
 					.index = i,
 					.count = q_props[i].queueCount
@@ -69,7 +73,7 @@ namespace gx {
 			else if (q_props[i].queueFlags & VK_QUEUE_COMPUTE_BIT &&
 					 q_props[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
 			{
-				info_.queue_infos.push_back(QueueInfo{
+				info.queue_infos.push_back(QueueInfo{
 					.type = QueueTypes::eCompute,
 					.index = i,
 					.count = q_props[i].queueCount
@@ -77,7 +81,7 @@ namespace gx {
 			}
 			else if (q_props[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
 			{
-				info_.queue_infos.push_back(QueueInfo{
+				info.queue_infos.push_back(QueueInfo{
 					.type = QueueTypes::eTransfer,
 					.index = i,
 					.count = q_props[i].queueCount
@@ -86,15 +90,17 @@ namespace gx {
 		}
 
 		if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-			info_.device_type = PhysicalDeviceType::eDiscreteGpu;
+			info.device_type = PhysicalDeviceType::eDiscreteGpu;
 		}
 		else if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
-			info_.device_type = PhysicalDeviceType::eIntegratedGpu;
+			info.device_type = PhysicalDeviceType::eIntegratedGpu;
 		}
+
+		infos_.insert(std::make_pair(this->handle_, std::move(info)));
 	}
 
 	eh::Result<DeviceOwner, ErrorCode> PhysicalDevice::get_logical_device(DeviceDesc desc) noexcept {
-		auto idxs = check_supported_queues(desc.requested_queues, info_);
+		auto idxs = check_supported_queues(desc.requested_queues, get_info());
 		
 		if (idxs.size() > 0) {
 			std::string unsupported_qs;
@@ -107,7 +113,7 @@ namespace gx {
 
 		// TODO: additional validation
 		for (auto& req_q : desc.requested_queues) {
-			auto it = std::ranges::find(info_.queue_infos, req_q.type, &QueueInfo::type);
+			auto it = std::ranges::find(get_info().queue_infos, req_q.type, &QueueInfo::type);
 			if (req_q.count > it->count) {
 				EH_ERROR_MSG(std::format("Requested {} but only {} presented", req_q.count , it->count));
 				req_q.count = it->count;
@@ -121,7 +127,7 @@ namespace gx {
 		for (usize i : std::ranges::views::iota(0u, q_infos.size())) {
 			q_infos[i] = VkDeviceQueueCreateInfo {
 				.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-				.queueFamilyIndex = static_cast<u32>(info_.get_queue_index(req_qs[i].type).value()),
+				.queueFamilyIndex = static_cast<u32>(get_info().get_queue_index(req_qs[i].type).value()),
 				.queueCount = static_cast<u32>(req_qs[i].count),
 				.pQueuePriorities = priors.data()
 			};
@@ -146,6 +152,8 @@ namespace gx {
 
 		return eh::Error{ convert_vk_result(res) };
 	}
+
+	std::array<usize, 3> DeviceView::queue_indices{};
 
 	void DeviceOwner::init_queues_(std::span<QueueInfo> req_qs) noexcept {
 		auto fill_vector = [device = this->handle_](auto& v, usize count, usize index) noexcept {

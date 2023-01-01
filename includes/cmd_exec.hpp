@@ -73,6 +73,46 @@ namespace gx {
 	};
 	static_assert(CommandContext<TransferContext>);
 
+	template<CommandContext Ctx>
+	class CommandPool : public ObjectOwner<CommandPool<Ctx>, VkCommandPool> {
+		friend struct unsafe::ObjectOwnerTrait<CommandPool>;
+	private:
+		VkDevice owner_;
+
+	public:
+		using Base = ObjectOwner<CommandPool, VkCommandPool>;
+		using ObjectType = VkCommandPool;
+
+	public:
+		CommandPool() noexcept = default;
+		CommandPool(VkCommandPool pool, VkDevice device) noexcept 
+			: Base{ pool }
+			, owner_{ device }
+		{}
+
+		CommandPool(CommandPool&&) noexcept = default;
+		CommandPool& operator=(CommandPool&&) noexcept = default;
+
+		~CommandPool() noexcept = default;
+
+	};
+
+	namespace unsafe {
+		template<CommandContext Ctx>
+		struct ObjectOwnerTrait<CommandPool<Ctx>> {
+			static void destroy(CommandPool<Ctx>& obj) noexcept {
+				vkDestroyCommandPool(obj.owner_, obj.handle_, nullptr);
+			}
+
+			[[nodiscard]]
+			static VkCommandPool unwrap_native_handle(CommandPool<Ctx>& obj) noexcept {
+				auto ret = obj.handle_;
+				obj.handle_ = VK_NULL_HANDLE;
+				return ret;
+			}
+		};
+	}
+
 	/*
 	* WARNING: It's not designed for usage in multithreded context!
 	* Only one thread can use an instance of this class at a time.

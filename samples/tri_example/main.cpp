@@ -44,5 +44,8 @@ int main() {
 	auto gq = device.pop_back_queue<gx::GraphicsQueue>();
 	auto tq = device.pop_back_queue<gx::TransferQueue>();
 
+	auto device_view = device.get_view();
+	auto cmd_pool = device_view.create_command_pool<gx::GraphicsContext>();
+
 	return 0;
 }

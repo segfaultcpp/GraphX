@@ -81,12 +81,6 @@ namespace gx {
 		}
 	};
 
-	struct InstanceInfo {
-		InstanceInfo() noexcept;
-		std::vector<VkExtensionProperties> supported_extensions;
-		std::vector<VkLayerProperties> supported_layers;
-	};
-
 	template<typename T>
 	inline constexpr bool is_extension_v = false;
 
@@ -156,14 +150,23 @@ namespace gx {
 
 	static_assert(Extension<SurfaceKhrExt<SurfaceWin32KhrExt>>);
 
+	struct InstanceInfo {
+		InstanceInfo() noexcept;
+		std::vector<VkExtensionProperties> supported_extensions;
+		std::vector<VkLayerProperties> supported_layers;
+	};
+
 	class PhysicalDevice;
 
 	template<Extension... Exts>
-	class Instance : public ObjectOwner<VkInstance>, Exts... {
+	class Instance : public ObjectOwner<Instance<Exts...>, VkInstance>, Exts... {
+		friend struct unsafe::ObjectOwnerTrait<Instance<Exts...>>;
+
+	private:
 		std::vector<PhysicalDevice> devices_;
 
 	public:
-		using Base = ObjectOwner<VkInstance>;
+		using Base = ObjectOwner<Instance<Exts...>, VkInstance>;
 		using ObjectType = VkInstance;
 
 	public:
@@ -172,17 +175,8 @@ namespace gx {
 			: Base{ inst }
 		{}
 
-		Instance(Instance&& rhs) noexcept  
-			: Base{ std::move(rhs) }
-			, devices_{ std::move(rhs.devices_) }
-		{}
-
-		Instance& operator=(Instance&& rhs) noexcept {
-			static_cast<Base&>(*this) = std::move(rhs);
-			devices_ = std::move(rhs.devices_);
-
-			return *this;
-		}
+		Instance(Instance&& rhs) noexcept = default;
+		Instance& operator=(Instance&& rhs) noexcept = default;
 
 		~Instance() noexcept = default;
 
@@ -193,13 +187,19 @@ namespace gx {
 	};
 
 	namespace unsafe {
-		template<>
-		inline void destroy<VkInstance>(VkInstance instance) noexcept {
-			if (instance != VK_NULL_HANDLE) {
-				// TODO: global allocator for allocating and deallocating vk objects.
-				vkDestroyInstance(instance, nullptr);
+		template<Extension... Exts>
+		struct ObjectOwnerTrait<Instance<Exts...>> {
+			static void destroy(Instance<Exts...>& obj) noexcept {
+				vkDestroyInstance(obj.handle_, nullptr);
 			}
-		}
+
+			[[nodiscard]]
+			static VkInstance unwrap_native_handle(Instance<Exts...>& obj) noexcept {
+				auto ret = obj.handle_;
+				obj.handle_ = VK_NULL_HANDLE;
+				return ret;
+			}
+		};
 	}
 
 	template<std::ranges::random_access_range Rng>
