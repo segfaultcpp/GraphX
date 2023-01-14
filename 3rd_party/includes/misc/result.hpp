@@ -45,17 +45,13 @@ namespace eh {
 	};
 
 	template<typename Res, typename Err>
-	class Result
-	{
-		using Underlying = std::conditional_t<sizeof(Err) == 8, std::uint64_t, std::conditional_t<sizeof(Err) == 4, std::uint32_t, void>>;
-		static_assert(!std::same_as<Underlying, void>);
-
-		bool is_error_ = false;
+	class [[nodiscard]] Result {
 		union
 		{
 			Res result_;
 			Error<Err> error_;
 		};
+		bool is_error_ = false;
 
 	public:
 		constexpr Result(Res&& res) noexcept
@@ -63,33 +59,55 @@ namespace eh {
 			, is_error_{ false }
 		{}
 
-		Result(Error<Err> err) noexcept
+		constexpr Result(Error<Err> err) noexcept
 			: error_{ std::move(err) }
 			, is_error_{ true }
 		{}
 
 		~Result() noexcept {
-			if (is_success()) {
+			if (is_ok()) {
 				result_.~Res();
 			}
 		}
 
 	public:
-		constexpr Result(Result&& rhs) noexcept
-			: result_{ std::move(rhs.result_) }
-			, is_error_{ rhs.is_error_ }
+		constexpr Result(Result&& rhs) noexcept 
+			: is_error_{ rhs.is_error_ }
 		{
+			if (rhs.is_error_) {
+				error_ = rhs.error_;
+			}
+			else {
+				result_ = std::move(rhs.result_);
+			}
+
 			rhs.is_error_ = false;
 		}
 
+		constexpr Result& operator=(Result&& rhs) noexcept {
+			is_error_ = rhs.is_error_;
+
+			if (rhs.is_error_) {
+				error_ = rhs.error_;
+			}
+			else {
+				result_ = std::move(rhs.result_);
+			}
+
+			rhs.is_error_ = false;
+		}
+
+		Result(const Result&) = delete;
+		Result& operator=(const Result&) = delete;
+
 	public:
-		constexpr bool is_success() const noexcept {
+		constexpr bool is_ok() const noexcept {
 			return !is_error_;
 		}
 
 		[[nodiscard]]
 		Res unwrap() && noexcept {
-			if (!is_success()) {
+			if (!is_ok()) {
 				EH_PANIC(std::format("Called Result<>::unwrap() on an error value. Error code: {}. Description: {}", ErrorTypeTrait<Err>::stringify(error_.error_value), ErrorTypeTrait<Err>::description(error_.error_value)));
 			}
 			return std::move(result_);
@@ -97,7 +115,7 @@ namespace eh {
 
 		[[nodiscard]]
 		Res expect(std::string_view error) && noexcept {
-			EH_ASSERT(is_success(), error);
+			EH_ASSERT(is_ok(), error);
 
 			return std::move(result_);
 		}
@@ -105,7 +123,7 @@ namespace eh {
 		template<typename ErrorHandler>
 		[[nodiscard]]
 		Res unwrap_or_else(ErrorHandler&& fn) && noexcept {
-			if (is_success()) {
+			if (is_ok()) {
 				return std::move(result_);
 			}
 			else {
@@ -115,7 +133,7 @@ namespace eh {
 
 		template<typename FnOk, typename FnErr>
 		void match(FnOk ok, FnErr err) && noexcept {
-			if (is_success()) {
+			if (is_ok()) {
 				ok(std::move(result_));
 			}
 			else {

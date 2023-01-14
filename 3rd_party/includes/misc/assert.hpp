@@ -115,6 +115,7 @@ namespace eh {
 		static constexpr OutputColor default_color = OutputColor::eWhite;
 
 	public:
+		NOINLINE
 		static auto make_assert(std::string_view condition, std::string_view message, std::string_view file, u32 line) noexcept {
 			using namespace std::literals;
 			std::size_t thread_id = std::hash<std::thread::id>{}(std::this_thread::get_id());
@@ -136,6 +137,7 @@ namespace eh {
 			};
 		}
 
+		NOINLINE
 		static auto make_panic(std::string_view message, std::string_view file, u32 line) noexcept {
 			using namespace std::literals;
 			std::size_t thread_id = std::hash<std::thread::id>{}(std::this_thread::get_id());
@@ -155,6 +157,7 @@ namespace eh {
 			};
 		}
 
+		NOINLINE
 		static auto make_warning(std::string_view message, std::string_view file, u32 line) noexcept {
 			using namespace std::literals;
 			std::size_t thread_id = std::hash<std::thread::id>{}(std::this_thread::get_id());
@@ -172,6 +175,7 @@ namespace eh {
 			};
 		}
 
+		NOINLINE
 		static auto make_info_message(std::string_view message) noexcept {
 			using namespace std::literals;
 			return std::vector{
@@ -180,6 +184,7 @@ namespace eh {
 			};
 		}
 
+		NOINLINE
 		static auto make_err_message(std::string_view message) noexcept {
 			using namespace std::literals;
 			return std::vector{
@@ -188,6 +193,7 @@ namespace eh {
 			};
 		}
 
+		NOINLINE
 		static auto make_warn_message(std::string_view message) noexcept {
 			using namespace std::literals;
 			return std::vector{
@@ -196,6 +202,7 @@ namespace eh {
 			};
 		}
 
+		NOINLINE
 		static void print(std::vector<std::pair<OutputColor, std::string>> tokens) noexcept {
 			std::lock_guard lock{ mutex_ };
 

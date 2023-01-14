@@ -252,7 +252,7 @@ namespace gx {
 
 	template<Extension... Exts>
 	[[nodiscard]]
-	eh::Result<Instance<Exts...>, ErrorCode> make_instance(const InstanceDesc& desc) noexcept {
+	Result<Instance<Exts...>> make_instance(const InstanceDesc& desc) noexcept {
 		InstanceInfo info;
 		std::vector<usize> idxs;
 

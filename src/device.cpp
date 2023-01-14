@@ -99,7 +99,7 @@ namespace gx {
 		infos_.insert(std::make_pair(this->handle_, std::move(info)));
 	}
 
-	eh::Result<DeviceOwner, ErrorCode> PhysicalDevice::get_logical_device(DeviceDesc desc) noexcept {
+	Result<DeviceOwner> PhysicalDevice::get_logical_device(DeviceDesc desc) noexcept {
 		auto idxs = check_supported_queues(desc.requested_queues, get_info());
 		
 		if (idxs.size() > 0) {
@@ -152,8 +152,6 @@ namespace gx {
 
 		return eh::Error{ convert_vk_result(res) };
 	}
-
-	std::array<usize, 3> DeviceView::queue_indices{};
 
 	void DeviceOwner::init_queues_(std::span<QueueInfo> req_qs) noexcept {
 		auto fill_vector = [device = this->handle_](auto& v, usize count, usize index) noexcept {

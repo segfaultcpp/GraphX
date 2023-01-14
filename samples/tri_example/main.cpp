@@ -25,6 +25,8 @@ int main() {
 		| std::ranges::views::filter(gx::request_transfer_queue())
 		| std::ranges::views::filter(gx::request_discrete_gpu());
 
+	EH_ASSERT(!filtered_devices.empty(), "Couldn't find suitable device");
+
 	std::array requested_queues = {
 		gx::QueueInfo {
 			.type = gx::QueueTypes::eGraphics,
@@ -45,7 +47,10 @@ int main() {
 	auto tq = device.pop_back_queue<gx::TransferQueue>();
 
 	auto device_view = device.get_view();
-	auto cmd_pool = device_view.create_command_pool<gx::GraphicsContext>();
+	auto cmd_pool = device_view.create_command_pool<gx::GraphicsContext>().unwrap();
 
+	auto ctx = cmd_pool.create_command_context();
+
+	
 	return 0;
 }

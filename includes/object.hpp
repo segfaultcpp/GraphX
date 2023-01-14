@@ -91,11 +91,6 @@ namespace gx {
 		ObjectOwner& operator=(ObjectOwner&&) noexcept = default;
 
 		~ObjectOwner() noexcept {
-			destroy();
-		}
-
-	protected:
-		void destroy() noexcept {
 			unsafe::ObjectOwnerTrait<CRTP>::destroy(*reinterpret_cast<CRTP*>(this));
 		}
 

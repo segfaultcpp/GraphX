@@ -50,6 +50,9 @@ namespace gx {
 
 		return ErrorCode::eUnknown;
 	}
+
+	template<typename T>
+	using Result = eh::Result<T, ErrorCode>;
 }
 
 template<>
@@ -87,10 +90,12 @@ struct eh::ErrorTypeTrait<gx::ErrorCode> {
 	};
 
 	static constexpr std::string_view description(gx::ErrorCode value) noexcept {
+		EH_ASSERT(static_cast<usize>(value) <= static_cast<usize>(gx::ErrorCode::eUnknown), "Undefined error code");
 		return descriptions[static_cast<usize>(value)];
 	}
 
 	static constexpr std::string_view stringify(gx::ErrorCode value) noexcept {
+		EH_ASSERT(static_cast<usize>(value) <= static_cast<usize>(gx::ErrorCode::eUnknown), "Undefined error code");
 		return names[static_cast<usize>(value)];
 	}
 

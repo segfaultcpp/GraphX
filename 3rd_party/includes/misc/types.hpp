@@ -16,3 +16,9 @@ using isize = i64;
 
 using f32 = float;
 using f64 = double;
+
+#if defined(_MSC_VER)
+#define NOINLINE __declspec(noinline)
+#elif defined(__clang__)
+#define [[clang::noinline]]
+#endif

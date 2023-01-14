@@ -50,12 +50,6 @@ namespace gx {
 		u8 memory_properties = 0;
 	};
 
-	enum class QueueTypes {
-		eGraphics = 0,
-		eTransfer,
-		eCompute,
-	};
-
 	struct QueueInfo {
 		QueueTypes type;
 		usize index;
@@ -131,16 +125,17 @@ namespace gx {
 		}
 
 	public:
-		eh::Result<DeviceOwner, ErrorCode> get_logical_device(DeviceDesc desc) noexcept;
+		Result<DeviceOwner> get_logical_device(DeviceDesc desc) noexcept;
 
 		const PhysicalDeviceInfo& get_info() const noexcept {
+			EH_ASSERT(this->handle_ != VK_NULL_HANDLE, "VKPhysicalDevice handle must be a valid value");
 			return infos_.at(this->handle_);
 		}
 
 	public:
-		static const PhysicalDeviceInfo& get_info(VkPhysicalDevice device) noexcept {
-			EH_ASSERT(infos_.find(device) != infos_.end(), "std::map<VkPhysicalDevice, PhysicalDeviceInfo> infos_ does not contain information about requeted physical device");
-			return infos_.at(device);
+		static const PhysicalDeviceInfo& get_info(PhysicalDevice device) noexcept {
+			EH_ASSERT(infos_.find(device.handle_) != infos_.end(), "std::map<VkPhysicalDevice, PhysicalDeviceInfo> infos_ does not contain information about requeted physical device");
+			return infos_.at(device.handle_);
 		}
 
 	private:
@@ -201,7 +196,6 @@ namespace gx {
 	}
 
 	class [[nodiscard]] DeviceView : public ObjectView<VkDevice> {
-		static std::array<usize, 3> queue_indices;
 		VkPhysicalDevice underlying_;
 
 	public:
@@ -212,41 +206,19 @@ namespace gx {
 		DeviceView(VkDevice logical_device, VkPhysicalDevice underlying_phys_device) noexcept
 			: Base{ logical_device }
 			, underlying_{ underlying_phys_device }
-		{
-			static auto _ = [this] {
-				queue_indices[0] = PhysicalDevice::get_info(this->underlying_).get_queue_index(QueueTypes::eGraphics).value_or(~0);
-				queue_indices[1] = PhysicalDevice::get_info(this->underlying_).get_queue_index(QueueTypes::eCompute).value_or(~0);
-				queue_indices[2] = PhysicalDevice::get_info(this->underlying_).get_queue_index(QueueTypes::eTransfer).value_or(~0);
-
-				return 0;
-			}();
-		}
+		{}
 
 	public:
 		template<CommandContext Ctx>
-		eh::Result<CommandPool<Ctx>, ErrorCode> create_command_pool() const noexcept {
-			usize index = [] {
-				if constexpr (std::same_as<Ctx, GraphicsContext>) {
-					return 0;
-				}
-
-				if constexpr (std::same_as<Ctx, ComputeContext>) {
-					return 1;
-				}
-
-				if constexpr (std::same_as<Ctx, TransferContext>) {
-					return 2;
-				}
-				return ~0;
-			}();
+		Result<CommandPool<Ctx>> create_command_pool() const noexcept {
+			EH_ASSERT(this->handle_ != VK_NULL_HANDLE, "VkDevice handle must ba a valid value");
+			usize q_index = PhysicalDevice{ underlying_ }.get_info().get_queue_index(Ctx::queue_type).value_or(~0);
+			EH_ASSERT(q_index != static_cast<usize>(~0), "This device does not support requested queue");
 			
-			EH_ASSERT(queue_indices[index] != static_cast<usize>(~0), "This device does not support requested queue");
-			index = queue_indices[index];
-
 			VkCommandPoolCreateInfo create_info = {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 				.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-				.queueFamilyIndex = static_cast<u32>(index)
+				.queueFamilyIndex = static_cast<u32>(q_index)
 			};
 
 			VkCommandPool pool;
