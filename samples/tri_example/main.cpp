@@ -17,17 +17,7 @@ int main() {
 		.set_engine_desc("My Engine", gx::Version{ 0, 1, 0 })
 		.enable_layers(layers);
 
-	auto callback = [](gx::MessageSeverity, u8, gx::CallbackData) {
-
-	};
-
-	using DebugMessenger =
-		gx::DebugUtilsExt<
-			gx::MessageSeverity::eError | gx::MessageSeverity::eWarning,
-			gx::MessageType::eValidation | gx::MessageType::ePerformance,
-			decltype(callback)
-		>;
-	auto instance = gx::make_instance<gx::SurfaceKhrExt<gx::SurfaceWin32KhrExt>, DebugMessenger>(inst_desc).unwrap();
+	auto instance = gx::make_instance<gx::SurfaceKhrExt>(inst_desc).unwrap();
 
 	auto filtered_devices = instance.enum_phys_devices()
 		| std::ranges::views::filter(gx::min_vram_size(gx::gb_to_bytes(1)))

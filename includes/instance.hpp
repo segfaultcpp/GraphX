@@ -88,71 +88,58 @@ namespace gx {
 	template<typename T>
 	concept Extension = is_extension_v<T> && std::ranges::sized_range<decltype(T::ext_names)> && std::constructible_from<T, VkInstance>;
 
-	template<typename T>
-	concept ExtImpl = is_extension_v<T> && requires {
-		T::ext_impl_name;
-	};
+	namespace details {
+		template<Platform P>
+		struct GetSurfaceExtImpl_;
 
-	template<typename T>
-	concept SurfaceImpl = ExtImpl<T> && 
-		requires(VkSurfaceKHR surface, typename T::WindowHandle window, typename T::AppInstance app) 
-	{
-		surface = T::create_surface(window, app);
-	};
+		template<>
+		struct GetSurfaceExtImpl_<Platform::eWindows> {
+			static Result<VkSurfaceKHR> create_surface(VkInstance instance, HINSTANCE app, HWND window) noexcept;
+		};
 
-	template<SurfaceImpl T>
+		template<>
+		struct GetSurfaceExtImpl_<Platform::eLinux> {};
+	}
+
 	struct SurfaceKhrExt {
-		static constexpr std::array ext_names = { ExtensionList::khr_surface, T::ext_impl_name };
+		// Constant expressions
+		static constexpr std::array ext_names = { ExtensionList::khr_surface };
 	
+		// Constructors/destructor
 		SurfaceKhrExt() noexcept = default;
-		SurfaceKhrExt(VkInstance instance) noexcept {}
-		
-		SurfaceKhrExt(SurfaceKhrExt&& rhs) noexcept
-			: surface_{ rhs.surface_ }
-		{
-			rhs.surface_ = VK_NULL_HANDLE;
-		}
 
-		SurfaceKhrExt& operator=(SurfaceKhrExt&& rhs) noexcept {
-			surface_ = rhs.surface_;
-			rhs.surface_ = VK_NULL_HANDLE;
+		SurfaceKhrExt(VkInstance instance) noexcept 
+			: instance_{ instance }
+		{}
 
-			return *this;
-		}
-
+		SurfaceKhrExt(SurfaceKhrExt&&) noexcept = default;
 		SurfaceKhrExt(const SurfaceKhrExt&) = delete;
+
+		~SurfaceKhrExt() noexcept = default;
+
+		// Assignment operators
+		SurfaceKhrExt& operator=(SurfaceKhrExt&&) noexcept = default;
 		SurfaceKhrExt& operator=(const SurfaceKhrExt&) = delete;
 
+		// Methods
 		[[nodiscard]]
-		VkSurfaceKHR get_surface(typename T::WindowHandle window, typename T::AppInstance app) noexcept;
+		/*
+		* TODO: For now gx::Instance object inheriting SurfaceKhrExt contains 2 handles of VkInstance.
+		* Possible ways to fix it: 1) Use CRTP. 2) Use explicit object parameter (C++23).
+		* First way will 
+		*/
+		Result<VkSurfaceKHR> get_surface(typename PlatformTraits<get_platform()>::WindowHandle window, typename PlatformTraits<get_platform()>::AppInstance app) noexcept {
+			return details::GetSurfaceExtImpl_<get_platform()>::create_surface(instance_, app, window);
+		}
 
-	protected:
-		VkSurfaceKHR surface_ = VK_NULL_HANDLE;
-	};
-
-#ifdef GX_WIN64
-	#include <Windows.h>
-	#include <vulkan/vulkan_win32.h>
-
-	struct SurfaceWin32KhrExt {
-		constexpr static const char* ext_impl_name = ExtensionList::khr_win32_surface;
-		using WindowHandle = HWND;
-		using AppInstance = HINSTANCE;
-
-		[[nodiscard]]
-		static VkSurfaceKHR create_surface(WindowHandle window, AppInstance app) noexcept {}
+	private:
+		// Fields
+		VkInstance instance_;
 	};
 
 	template<>
-	inline constexpr bool is_extension_v<SurfaceWin32KhrExt> = true;
-
-	static_assert(SurfaceImpl<SurfaceWin32KhrExt>);
-#endif // GX_WIN64
-
-	template<SurfaceImpl T>
-	inline constexpr bool is_extension_v<SurfaceKhrExt<T>> = true;
-
-	static_assert(Extension<SurfaceKhrExt<SurfaceWin32KhrExt>>);
+	inline constexpr bool is_extension_v<SurfaceKhrExt> = true;
+	static_assert(Extension<SurfaceKhrExt>);
 
 	enum class MessageSeverity : u8 {
 		eDiagnostic = bit<u8, 0>(),
@@ -365,15 +352,6 @@ namespace gx {
 			[](const char* layer1, const char* layer2) noexcept {
 				return std::strcmp(layer1, layer2) == 0;
 			});
-	}
-
-	template<SurfaceImpl T>
-	[[nodiscard]]
-	VkSurfaceKHR SurfaceKhrExt<T>::get_surface(typename T::WindowHandle window, typename T::AppInstance app) noexcept {
-		if (surface_ == VK_NULL_HANDLE) {
-			surface_ = T::create_surface(window, app);
-		}
-		return surface_;
 	}
 
 	template<Extension... Exts>
