@@ -33,17 +33,7 @@ namespace gx {
 		eHostCoherent = bit<u8, 2>(),
 	};
 
-	inline u8 operator|(MemoryProperties lhs, MemoryProperties rhs) noexcept {
-		return static_cast<u8>(lhs) | static_cast<u8>(rhs);
-	}
-
-	inline u8 operator&(u8 lhs, MemoryProperties rhs) noexcept {
-		return lhs & static_cast<u8>(rhs);
-	}
-
-	inline u8 operator |=(const u8 lhs, MemoryProperties rhs) noexcept {
-		return static_cast<MemoryProperties>(lhs) | rhs;
-	}
+	OVERLOAD_BIT_OPS(MemoryProperties, u8);
 
 	struct MemoryInfo {
 		usize budget = 0;

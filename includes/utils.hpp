@@ -6,6 +6,19 @@
 #include <misc/utils.hpp>
 #include <misc/types.hpp>
 
+#define OVERLOAD_BIT_OPS(E, I) \
+static_assert(std::is_enum_v<E>); \
+static_assert(std::integral<I>); \
+constexpr I operator|(E lhs, E rhs) noexcept { \
+	return static_cast<I>(lhs) | static_cast<I>(rhs); \
+} \
+constexpr I operator |=(I lhs, E rhs) noexcept { \
+	return static_cast<E>(lhs) | rhs; \
+} \
+constexpr I operator&(I lhs, E rhs) noexcept { \
+	return lhs & static_cast<I>(rhs); \
+} \
+
 namespace gx {
 	template<std::ranges::random_access_range ReqRng, std::ranges::input_range SupRng, typename Comp = std::equal_to<>, typename Proj = std::identity>
 	std::vector<usize> check_support(ReqRng&& requested, SupRng&& supported, Proj proj = {}, Comp&& comp = {}) noexcept {

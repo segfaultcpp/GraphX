@@ -35,6 +35,7 @@ namespace gx {
 	struct ExtensionList {
 		static constexpr const char* khr_surface = "VK_KHR_surface";
 		static constexpr const char* khr_win32_surface = "VK_KHR_win32_surface";
+		static constexpr const char* ext_debug_utils = "VK_EXT_debug_utils";
 	};
 
 	struct LayerList {
@@ -85,23 +86,26 @@ namespace gx {
 	inline constexpr bool is_extension_v = false;
 
 	template<typename T>
-	concept Extension = is_extension_v<T> && std::ranges::sized_range<decltype(T::ext_names)>;
-	
+	concept Extension = is_extension_v<T> && std::ranges::sized_range<decltype(T::ext_names)> && std::constructible_from<T, VkInstance>;
+
 	template<typename T>
 	concept ExtImpl = is_extension_v<T> && requires {
 		T::ext_impl_name;
 	};
 
 	template<typename T>
-	concept SurfaceImpl = ExtImpl<T> && requires {
-		{ T::create_surface(std::declval<typename T::WindowHandle_t>(), std::declval<typename T::AppInstance_t>()) } -> std::same_as<VkSurfaceKHR>;
+	concept SurfaceImpl = ExtImpl<T> && 
+		requires(VkSurfaceKHR surface, typename T::WindowHandle window, typename T::AppInstance app) 
+	{
+		surface = T::create_surface(window, app);
 	};
 
 	template<SurfaceImpl T>
 	struct SurfaceKhrExt {
-		constexpr static std::array<const char*, 2> ext_names = { ExtensionList::khr_surface, T::ext_impl_name };
+		static constexpr std::array ext_names = { ExtensionList::khr_surface, T::ext_impl_name };
 	
 		SurfaceKhrExt() noexcept = default;
+		SurfaceKhrExt(VkInstance instance) noexcept {}
 		
 		SurfaceKhrExt(SurfaceKhrExt&& rhs) noexcept
 			: surface_{ rhs.surface_ }
@@ -120,7 +124,7 @@ namespace gx {
 		SurfaceKhrExt& operator=(const SurfaceKhrExt&) = delete;
 
 		[[nodiscard]]
-		VkSurfaceKHR get_surface(typename T::WindowHandle_t window, typename T::AppInstance_t app) noexcept;
+		VkSurfaceKHR get_surface(typename T::WindowHandle window, typename T::AppInstance app) noexcept;
 
 	protected:
 		VkSurfaceKHR surface_ = VK_NULL_HANDLE;
@@ -132,11 +136,11 @@ namespace gx {
 
 	struct SurfaceWin32KhrExt {
 		constexpr static const char* ext_impl_name = ExtensionList::khr_win32_surface;
-		using WindowHandle_t = HWND;
-		using AppInstance_t = HINSTANCE;
+		using WindowHandle = HWND;
+		using AppInstance = HINSTANCE;
 
 		[[nodiscard]]
-		static VkSurfaceKHR create_surface(WindowHandle_t window, AppInstance_t app) noexcept {}
+		static VkSurfaceKHR create_surface(WindowHandle window, AppInstance app) noexcept {}
 	};
 
 	template<>
@@ -150,6 +154,141 @@ namespace gx {
 
 	static_assert(Extension<SurfaceKhrExt<SurfaceWin32KhrExt>>);
 
+	enum class MessageSeverity : u8 {
+		eDiagnostic = bit<u8, 0>(),
+		eInfo = bit<u8, 1>(),
+		eWarning = bit<u8, 2>(),
+		eError = bit<u8, 3>(),
+	};
+
+	enum class MessageType : u8 {
+		eGeneral = bit<u8, 0>(),
+		eValidation = bit<u8, 1>(),
+		ePerformance = bit<u8, 2>(),
+	};
+
+	OVERLOAD_BIT_OPS(MessageSeverity, u8);
+	OVERLOAD_BIT_OPS(MessageType, u8);
+
+	inline MessageSeverity message_severity_from_vk(VkDebugUtilsMessageSeverityFlagBitsEXT severity) noexcept {
+		switch (severity) {
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+			return MessageSeverity::eDiagnostic;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+			return MessageSeverity::eInfo;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+			return MessageSeverity::eWarning;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+			return MessageSeverity::eError;
+		}
+	}
+
+	inline u8 message_type_from_vk(VkDebugUtilsMessageTypeFlagsEXT type) noexcept {
+		u8 ret = 0;
+		if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT) {
+			ret |= MessageType::eGeneral;
+		}
+		if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
+			ret |= MessageType::eValidation;
+		}
+		if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
+			ret |= MessageType::ePerformance;
+		}
+		return ret;
+	}
+
+	constexpr VkDebugUtilsMessageSeverityFlagsEXT message_severity_to_vk(u8 from) noexcept {
+		VkDebugUtilsMessageSeverityFlagsEXT ret = 0;
+		if (from & MessageSeverity::eDiagnostic) {
+			ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+		}
+		if (from & MessageSeverity::eInfo) {
+			ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
+		}
+		if (from & MessageSeverity::eWarning) {
+			ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+		}
+		if (from & MessageSeverity::eError) {
+			ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		}
+		return ret;
+	}
+
+	constexpr VkDebugUtilsMessageTypeFlagsEXT message_type_to_vk(u8 from) noexcept {
+		VkDebugUtilsMessageTypeFlagsEXT ret = 0;
+		if (from & MessageType::eGeneral) {
+			ret |= VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT;
+		}
+		if (from & MessageType::eValidation) {
+			ret |= VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+		}
+		if (from & MessageType::ePerformance) {
+			ret |= VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		}
+		return ret;
+	}
+
+	struct CallbackData {
+		std::string_view message;
+	};
+
+	template<typename T>
+	concept DebugUtilsExtCallable = std::invocable<T, MessageSeverity, u8, CallbackData>;
+
+	template<u8 MsgSeverityFlags, u8 MsgTypeFlags, DebugUtilsExtCallable Fn>
+	class DebugUtilsExt {
+	private:
+		// Static functions
+		static VKAPI_ATTR VkBool32 VKAPI_CALL 
+		debug_callback(
+			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+			VkDebugUtilsMessageTypeFlagsEXT type,
+			const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+			void* pUserData) noexcept
+		{
+			CallbackData data = {
+				.message = callback_data->pMessage
+			};
+			Fn{}(message_severity_from_vk(severity), message_type_from_vk(type), data);
+			return VK_FALSE;
+		}
+
+	public:
+		// Constant expressions
+		static constexpr std::array ext_names = { ExtensionList::ext_debug_utils };
+
+		// Constructors/destructor
+		DebugUtilsExt() noexcept = default;
+
+		DebugUtilsExt(VkInstance instance) noexcept {
+			EH_ASSERT(instance != VK_NULL_HANDLE, "VkInstance handle must be a valid value");
+			
+			constexpr auto vk_msg_severity = message_severity_to_vk(MsgSeverityFlags);
+			constexpr auto vk_msg_type = message_type_to_vk(MsgTypeFlags);
+
+			VkDebugUtilsMessengerCreateInfoEXT create_info = {
+				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+				.messageSeverity = vk_msg_severity,
+				.messageType = vk_msg_type,
+				.pfnUserCallback = debug_callback,
+			};
+
+			auto create_debug_utils_messenger = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+			EH_ASSERT(create_debug_utils_messenger != nullptr, "Failed to get vkCreateDebugUtilsMessengerEXT function address");
+			
+			VkResult result = create_debug_utils_messenger(instance, &create_info, nullptr, &debug_messenger_);
+			EH_ASSERT(result == VK_SUCCESS, "Failed to create VkDebugUtilsMessengerEXT handle");
+		}
+
+	protected:
+		// Fields 
+		VkDebugUtilsMessengerEXT debug_messenger_;
+		
+	};
+
+	template<u8 S, u8 T, DebugUtilsExtCallable Fn>
+	inline constexpr bool is_extension_v<DebugUtilsExt<S, T, Fn>> = true;
+
 	struct InstanceInfo {
 		InstanceInfo() noexcept;
 		std::vector<VkExtensionProperties> supported_extensions;
@@ -160,27 +299,35 @@ namespace gx {
 
 	template<Extension... Exts>
 	class Instance : public ObjectOwner<Instance<Exts...>, VkInstance>, Exts... {
+	private:
+		// Friends
 		friend struct unsafe::ObjectOwnerTrait<Instance<Exts...>>;
 
-	private:
+		// Fields
 		std::vector<PhysicalDevice> devices_;
 
 	public:
+		// Type aliases
 		using Base = ObjectOwner<Instance<Exts...>, VkInstance>;
 		using ObjectType = VkInstance;
 
-	public:
+		// Constructors/destructor
 		Instance() noexcept = default;
 		Instance(VkInstance inst) noexcept
 			: Base{ inst }
+			, Exts{ inst }...
 		{}
 
 		Instance(Instance&& rhs) noexcept = default;
-		Instance& operator=(Instance&& rhs) noexcept = default;
-
+		Instance(const Instance&) = delete;
+		
 		~Instance() noexcept = default;
 
-	public:
+		// Assignment operators
+		Instance& operator=(Instance&& rhs) noexcept = default;
+		Instance& operator=(const Instance&) = delete;
+
+		// Methods
 		[[nodiscard]]
 		std::span<PhysicalDevice> enum_phys_devices() noexcept;
 
@@ -222,7 +369,7 @@ namespace gx {
 
 	template<SurfaceImpl T>
 	[[nodiscard]]
-	VkSurfaceKHR SurfaceKhrExt<T>::get_surface(typename T::WindowHandle_t window, typename T::AppInstance_t app) noexcept {
+	VkSurfaceKHR SurfaceKhrExt<T>::get_surface(typename T::WindowHandle window, typename T::AppInstance app) noexcept {
 		if (surface_ == VK_NULL_HANDLE) {
 			surface_ = T::create_surface(window, app);
 		}
@@ -259,7 +406,7 @@ namespace gx {
 		constexpr std::array required_exts = [](auto&&... args) {
 			constexpr usize size = (0 + ... + std::size(Exts::ext_names));
 			std::array<const char*, size> ret = {}; usize i = 0;
-			((std::ranges::copy(std::begin(args) + i, std::begin(args) + std::size(args), ret.begin()), ++i), ...);
+			((std::ranges::copy(std::begin(args), std::end(args), ret.begin() + i), i += std::size(args)), ...);
 			return ret;
 		}(Exts::ext_names...);
 
