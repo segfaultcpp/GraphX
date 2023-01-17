@@ -94,6 +94,7 @@ namespace gx {
 
 		template<>
 		struct GetSurfaceExtImpl_<Platform::eWindows> {
+			static constexpr const char* ext_impl = ExtensionList::khr_win32_surface;
 			static Result<VkSurfaceKHR> create_surface(VkInstance instance, HINSTANCE app, HWND window) noexcept;
 		};
 
@@ -102,8 +103,15 @@ namespace gx {
 	}
 
 	struct SurfaceKhrExt {
+	private:
+		// Type aliases
+		using Impl_ = details::GetSurfaceExtImpl_<get_platform()>;
+
+	public:
+		using PT = PlatformTraits<get_platform()>;
+		
 		// Constant expressions
-		static constexpr std::array ext_names = { ExtensionList::khr_surface };
+		static constexpr std::array ext_names = { ExtensionList::khr_surface, Impl_::ext_impl };
 	
 		// Constructors/destructor
 		SurfaceKhrExt() noexcept = default;
@@ -126,10 +134,9 @@ namespace gx {
 		/*
 		* TODO: For now gx::Instance object inheriting SurfaceKhrExt contains 2 handles of VkInstance.
 		* Possible ways to fix it: 1) Use CRTP. 2) Use explicit object parameter (C++23).
-		* First way will 
 		*/
-		Result<VkSurfaceKHR> get_surface(typename PlatformTraits<get_platform()>::WindowHandle window, typename PlatformTraits<get_platform()>::AppInstance app) noexcept {
-			return details::GetSurfaceExtImpl_<get_platform()>::create_surface(instance_, app, window);
+		Result<VkSurfaceKHR> get_surface(typename PT::WindowHandle window, typename PT::AppInstance app) noexcept {
+			return Impl_::create_surface(instance_, app, window);
 		}
 
 	private:
