@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <format>
 #include <mutex>
+#include <vector>
 
 #include "types.hpp"
 

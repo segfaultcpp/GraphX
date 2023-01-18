@@ -1,10 +1,6 @@
 #include <instance.hpp>
 #include <device.hpp>
 
-#ifdef GX_WIN64 
-#include <vulkan/vulkan_win32.h>
-#endif
-
 namespace gx {
 	InstanceInfo::InstanceInfo() noexcept {
 		u32 count = 0;
@@ -18,23 +14,62 @@ namespace gx {
 		vkEnumerateInstanceLayerProperties(&count, supported_layers.data());
 	}
 
-	namespace details {
-		Result<VkSurfaceKHR> GetSurfaceExtImpl_<Platform::eWindows>::create_surface(VkInstance instance, HINSTANCE app, HWND window) noexcept {
-#ifdef GX_WIN64
-			VkSurfaceKHR surface;
-
-			VkWin32SurfaceCreateInfoKHR createInfo = {
-				.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-				.hinstance = app,
-				.hwnd = window,
-			};
-
-			auto res = vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface);
-			if (res == VK_SUCCESS) {
-				return surface;
+	namespace ext {
+		MessageSeverity message_severity_from_vk(VkDebugUtilsMessageSeverityFlagBitsEXT severity) noexcept {
+			switch (severity) {
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+				return MessageSeverity::eDiagnostic;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+				return MessageSeverity::eInfo;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+				return MessageSeverity::eWarning;
 			}
-			return eh::Error{ convert_vk_result(res) };
-#endif
+			return MessageSeverity::eError;
+		}
+
+		u8 message_type_from_vk(VkDebugUtilsMessageTypeFlagsEXT type) noexcept {
+			u8 ret = 0;
+			if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT) {
+				ret |= MessageType::eGeneral;
+			}
+			if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
+				ret |= MessageType::eValidation;
+			}
+			if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
+				ret |= MessageType::ePerformance;
+			}
+			return ret;
+		}
+
+		constexpr VkDebugUtilsMessageSeverityFlagsEXT message_severity_to_vk(u8 from) noexcept {
+			VkDebugUtilsMessageSeverityFlagsEXT ret = 0;
+			if (from & MessageSeverity::eDiagnostic) {
+				ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+			}
+			if (from & MessageSeverity::eInfo) {
+				ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
+			}
+			if (from & MessageSeverity::eWarning) {
+				ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+			}
+			if (from & MessageSeverity::eError) {
+				ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+			}
+			return ret;
+		}
+
+		constexpr VkDebugUtilsMessageTypeFlagsEXT message_type_to_vk(u8 from) noexcept {
+			VkDebugUtilsMessageTypeFlagsEXT ret = 0;
+			if (from & MessageType::eGeneral) {
+				ret |= VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT;
+			}
+			if (from & MessageType::eValidation) {
+				ret |= VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+			}
+			if (from & MessageType::ePerformance) {
+				ret |= VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+			}
+			return ret;
 		}
 	}
 }

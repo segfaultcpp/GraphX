@@ -8,16 +8,13 @@
 #include <misc/types.hpp>
 
 int main() {
-	std::array layers = {
-		gx::LayerList::khr_validation,
-	};
-	// TODO: fix constexprness
-	auto inst_desc = gx::InstanceDesc{}
+	constexpr auto inst_desc = gx::InstanceDesc{}
 		.set_app_desc("My App", gx::Version{ 0, 1, 0 })
 		.set_engine_desc("My Engine", gx::Version{ 0, 1, 0 })
-		.enable_layers(layers);
-
-	auto instance = gx::make_instance<gx::SurfaceKhrExt>(inst_desc).unwrap();
+		.enable_extension<gx::ext::DebugUtilsExt>()
+		.enable_layer<gx::ext::ValidationLayerKhr>();
+	
+	auto instance = gx::make_instance(inst_desc).unwrap();
 
 	auto filtered_devices = instance.enum_phys_devices()
 		| std::ranges::views::filter(gx::min_vram_size(gx::gb_to_bytes(1)))
@@ -51,6 +48,5 @@ int main() {
 
 	auto ctx = cmd_pool.create_command_context();
 
-	
 	return 0;
 }

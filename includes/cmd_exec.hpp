@@ -3,6 +3,7 @@
 #include <limits>
 #include <vector>
 #include <tuple>
+#include <span>
 
 #include <vulkan/vulkan.h>
 

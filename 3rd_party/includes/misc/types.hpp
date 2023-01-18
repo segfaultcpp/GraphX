@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstddef>
 
 using i8 = std::int8_t;
 using i16 = std::int16_t;
