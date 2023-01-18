@@ -173,6 +173,9 @@ namespace gx {
 	};
 
 	class PhysicalDevice;
+	namespace ext {
+		class DebugUtils;
+	}
 
 	template<typename L1, typename L2>
 	class Instance;
@@ -182,7 +185,7 @@ namespace gx {
 	private:
 		// Friends
 		friend struct unsafe::ObjectOwnerTrait<Instance<meta::List<Exts...>, meta::List<Lyrs...>>>;
-		friend Result<class ext::DebugUtils> make_debug_utils(const Instance<meta::List<Exts...>, meta::List<Lyrs...>>&) noexcept;
+		friend Result<ext::DebugUtils> make_debug_utils(const Instance<meta::List<Exts...>, meta::List<Lyrs...>>&) noexcept;
 
 		// Fields
 		std::vector<PhysicalDevice> devices_;

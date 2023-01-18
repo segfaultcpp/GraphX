@@ -11,7 +11,6 @@ int main() {
 	constexpr auto inst_desc = gx::InstanceDesc{}
 		.set_app_desc("My App", gx::Version{ 0, 1, 0 })
 		.set_engine_desc("My Engine", gx::Version{ 0, 1, 0 })
-		.enable_extension<gx::ext::DebugUtilsExt>()
 		.enable_layer<gx::ext::ValidationLayerKhr>();
 	
 	auto instance = gx::make_instance(inst_desc).unwrap();
