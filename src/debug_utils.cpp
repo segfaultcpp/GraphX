@@ -28,7 +28,7 @@ namespace gx {
 			return ret;
 		}
 
-		constexpr VkDebugUtilsMessageSeverityFlagsEXT message_severity_to_vk(u8 from) noexcept {
+		VkDebugUtilsMessageSeverityFlagsEXT message_severity_to_vk(u8 from) noexcept {
 			VkDebugUtilsMessageSeverityFlagsEXT ret = 0;
 			if (from & MessageSeverity::eDiagnostic) {
 				ret |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
@@ -45,7 +45,7 @@ namespace gx {
 			return ret;
 		}
 
-		constexpr VkDebugUtilsMessageTypeFlagsEXT message_type_to_vk(u8 from) noexcept {
+		VkDebugUtilsMessageTypeFlagsEXT message_type_to_vk(u8 from) noexcept {
 			VkDebugUtilsMessageTypeFlagsEXT ret = 0;
 			if (from & MessageType::eGeneral) {
 				ret |= VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT;

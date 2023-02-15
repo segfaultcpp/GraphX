@@ -37,54 +37,43 @@ namespace gx {
 
 		MessageSeverity message_severity_from_vk(VkDebugUtilsMessageSeverityFlagBitsEXT severity) noexcept;
 		u8 message_type_from_vk(VkDebugUtilsMessageTypeFlagsEXT type) noexcept;
-		constexpr VkDebugUtilsMessageSeverityFlagsEXT message_severity_to_vk(u8 from) noexcept;
-		constexpr VkDebugUtilsMessageTypeFlagsEXT message_type_to_vk(u8 from) noexcept;
+		VkDebugUtilsMessageSeverityFlagsEXT message_severity_to_vk(u8 from) noexcept;
+		VkDebugUtilsMessageTypeFlagsEXT message_type_to_vk(u8 from) noexcept;
 
 		struct CallbackData {
 			std::string_view message;
 		};
 
 		template<typename T>
-		concept DebugUtilsExtCallable = std::invocable<T, MessageSeverity, u8, CallbackData>;
+		concept DebugUtilsExtCallable = std::invocable<T, MessageSeverity, u8, CallbackData> && std::is_object_v<T> && !std::is_pointer_v<T>;
 
 		struct DebugUtilsExtDef : ExtensionTag {
 			static constexpr std::array ext_names = { ExtensionList::ext_debug_utils };
 
-			static PFN_vkCreateDebugUtilsMessengerEXT create_fn;
-			static PFN_vkDestroyDebugUtilsMessengerEXT destroy_fn;
+			static details::MakeCreateExtFn<PFN_vkCreateDebugUtilsMessengerEXT> create_fn;
+			static details::MakeDestroyExtFn<PFN_vkDestroyDebugUtilsMessengerEXT> destroy_fn;
 
 			static void load(VkInstance instance) noexcept {
-				create_fn = std::bit_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
-				EH_ASSERT(create_fn != nullptr, "Failed to get vkCreateDebugUtilsMessengerEXT function address");
+				auto cfn = std::bit_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+				EH_ASSERT(cfn != nullptr, "Failed to get vkCreateDebugUtilsMessengerEXT function address");
 
-				destroy_fn = std::bit_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
-				EH_ASSERT(destroy_fn != nullptr, "Failed to get vkDestroyDebugUtilsMessengerEXT function address");
+				auto dfn = std::bit_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
+				EH_ASSERT(dfn != nullptr, "Failed to get vkDestroyDebugUtilsMessengerEXT function address");
+			
+				create_fn = details::MakeCreateExtFn<PFN_vkCreateDebugUtilsMessengerEXT>{ instance, cfn };
+				destroy_fn = details::MakeDestroyExtFn<PFN_vkDestroyDebugUtilsMessengerEXT>{ instance, dfn };
 			}
 		};
-		inline PFN_vkCreateDebugUtilsMessengerEXT DebugUtilsExtDef::create_fn = nullptr;
-		inline PFN_vkDestroyDebugUtilsMessengerEXT DebugUtilsExtDef::destroy_fn = nullptr;
+		
+		inline details::MakeCreateExtFn<PFN_vkCreateDebugUtilsMessengerEXT> DebugUtilsExtDef::create_fn{};
+		inline details::MakeDestroyExtFn<PFN_vkDestroyDebugUtilsMessengerEXT> DebugUtilsExtDef::destroy_fn{};
+
 		static_assert(ExtensionDef<DebugUtilsExtDef>);
 
 		struct DebugUtilsExt : RegisterExtension<DebugUtilsExtDef, meta::List<ValidationLayerKhr>> {};
 		static_assert(RegisteredExtension<DebugUtilsExt>);
 
 		class DebugUtils : public ObjectOwner<DebugUtils, VkDebugUtilsMessengerEXT> {
-		private:
-			// Static functions
-			//static VKAPI_ATTR VkBool32 VKAPI_CALL
-			//	debug_callback(
-			//		VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-			//		VkDebugUtilsMessageTypeFlagsEXT type,
-			//		const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-			//		void* pUserData) noexcept
-			//{
-			//	CallbackData data = {
-			//		.message = callback_data->pMessage
-			//	};
-			//	Fn{}(message_severity_from_vk(severity), message_type_from_vk(type), data);
-			//	return VK_FALSE;
-			//}
-
 		public:
 			// Friends
 			friend struct ::gx::unsafe::ObjectOwnerTrait<DebugUtils>;
@@ -96,9 +85,8 @@ namespace gx {
 			// Constructors/destructor
 			DebugUtils() noexcept = default;
 
-			DebugUtils(VkDebugUtilsMessengerEXT debug_utils, VkInstance instance) noexcept
+			DebugUtils(VkDebugUtilsMessengerEXT debug_utils) noexcept
 				: Base{ debug_utils }
-				, parent_{ instance }
 			{}
 
 			DebugUtils(DebugUtils&&) noexcept = default;
@@ -109,15 +97,49 @@ namespace gx {
 			// Assignment operators
 			DebugUtils& operator=(DebugUtils&&) noexcept = default;
 			DebugUtils& operator=(const DebugUtils&) = delete;
-
-		private:
-			VkInstance parent_;
 		};
 
-		template<ext::ExtensionDef... Exts, ext::Layer... Lyrs>
-			requires meta::SameAsAny<DebugUtilsExtDef, Exts...>
-		Result<DebugUtils> make_debug_utils(const Instance<meta::List<Exts...>, meta::List<Lyrs...>>& instance) noexcept {
+		namespace details {
+			template<typename Fn>
+			static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
+				VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+				VkDebugUtilsMessageTypeFlagsEXT type,
+				const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+				void* pUserData) noexcept
+			{
+				CallbackData data = {
+					.message = callback_data->pMessage
+				};
+				Fn{}(message_severity_from_vk(severity), message_type_from_vk(type), data);
+				return VK_FALSE;
+			}
+		}
 
+		template<DebugUtilsExtCallable Fn, ExtensionDef... Exts, Layer... Lyrs>
+			requires meta::SameAsAny<DebugUtilsExtDef, Exts...>
+		Result<DebugUtils> make_debug_utils([[maybe_unused]] const Instance<meta::List<Exts...>, meta::List<Lyrs...>>& unused, u8 severity_flags, u8 type_flags) noexcept {
+			auto vk_msg_severity = message_severity_to_vk(severity_flags);
+			auto vk_msg_type = message_type_to_vk(type_flags);
+
+			EH_ASSERT(vk_msg_severity != 0, "Passed invalid argument. severity_flags must not be 0");
+			EH_ASSERT(vk_msg_type != 0, "Passed invalid argument. type_flags must not be 0");
+			
+			VkDebugUtilsMessengerCreateInfoEXT create_info = {
+				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+				.messageSeverity = vk_msg_severity,
+				.messageType = vk_msg_type,
+				.pfnUserCallback = &details::debug_callback<Fn>,
+				.pUserData = nullptr,
+			};
+
+			VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;
+			VkResult res = DebugUtilsExtDef::create_fn(&create_info, nullptr, &messenger);
+
+			if (res == VK_SUCCESS) {
+				return DebugUtils{ messenger };
+			}
+
+			return eh::Error{ convert_vk_result(res) };
 		}
 	}
 
@@ -125,7 +147,7 @@ namespace gx {
 		template<>
 		struct ObjectOwnerTrait<::gx::ext::DebugUtils> {
 			static void destroy(::gx::ext::DebugUtils& obj) noexcept {
-				ext::DebugUtilsExtDef::destroy_fn(obj.parent_, obj.handle_, nullptr);
+				ext::DebugUtilsExtDef::destroy_fn(obj.handle_);
 			}
 
 			[[nodiscard]]

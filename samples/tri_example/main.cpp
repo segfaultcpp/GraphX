@@ -2,6 +2,8 @@
 #include <device.hpp>
 #include <cmd_exec.hpp>
 
+#include <swap_chain.hpp>
+
 #include <ranges>
 #include <array>
 
@@ -11,9 +13,11 @@ int main() {
 	constexpr auto inst_desc = gx::InstanceDesc{}
 		.set_app_desc("My App", gx::Version{ 0, 1, 0 })
 		.set_engine_desc("My Engine", gx::Version{ 0, 1, 0 })
-		.enable_layer<gx::ext::ValidationLayerKhr>();
+		.enable_layer<gx::ext::ValidationLayerKhr>()
+		.enable_extension<gx::ext::SurfaceKhrExt>();
 	
 	auto instance = gx::make_instance(inst_desc).unwrap();
+	auto surface = gx::ext::make_surface(instance, 0, 0);
 
 	auto filtered_devices = instance.enum_phys_devices()
 		| std::ranges::views::filter(gx::min_vram_size(gx::gb_to_bytes(1)))

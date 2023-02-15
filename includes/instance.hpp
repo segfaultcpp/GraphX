@@ -108,6 +108,43 @@ namespace gx {
 			static constexpr const char* layer_name = LayerList::khr_validation;
 		};
 		static_assert(Layer<ValidationLayerKhr>);
+
+		namespace details {
+			template<typename Fn>
+			struct MakeCreateExtFn {
+				MakeCreateExtFn() noexcept = default;
+				MakeCreateExtFn(VkInstance instance, Fn create) noexcept
+					: parent_{ instance }
+					, create_{ create }
+				{}
+
+				[[nodiscard]]
+				decltype(auto) operator()(auto&&... args) const noexcept {
+					return create_(parent_, std::forward<decltype(args)>(args)...);
+				}
+
+			private:
+				VkInstance parent_ = VK_NULL_HANDLE;
+				Fn create_{};
+			};
+
+			template<typename Fn>
+			struct MakeDestroyExtFn {
+				MakeDestroyExtFn() noexcept = default;
+				MakeDestroyExtFn(VkInstance instance, Fn destroy) noexcept
+					: parent_{ instance }
+					, destroy_{ destroy }
+				{}
+
+				void operator()(auto& obj) const noexcept {
+					return destroy_(parent_, obj, nullptr);
+				}
+
+			private:
+				VkInstance parent_ = VK_NULL_HANDLE;
+				Fn destroy_{};
+			};
+		}
 	}
 
 	struct Version {
@@ -185,7 +222,6 @@ namespace gx {
 	private:
 		// Friends
 		friend struct unsafe::ObjectOwnerTrait<Instance<meta::List<Exts...>, meta::List<Lyrs...>>>;
-		friend Result<ext::DebugUtils> make_debug_utils(const Instance<meta::List<Exts...>, meta::List<Lyrs...>>&) noexcept;
 
 		// Fields
 		std::vector<PhysicalDevice> devices_;
@@ -271,9 +307,11 @@ namespace gx {
 		return devices_;
 	}
 
-	template<template<ext::RegisteredExtension...> typename L1, template<ext::Layer...> typename L2, ext::RegisteredExtension... Exts, ext::Layer... Lyrs>
+	template<ext::RegisteredExtension... Exts, ext::Layer... Lyrs>
 	[[nodiscard]]
-	Result<Instance<meta::List<typename Exts::Definition...>, meta::List<Lyrs...>>> make_instance(const InstanceDesc<L1<Exts...>, L2<Lyrs...>>& desc) noexcept {
+	auto make_instance(const InstanceDesc<meta::List<Exts...>, meta::List<Lyrs...>>& desc) noexcept
+		-> Result<Instance<meta::List<typename Exts::Definition...>, meta::List<Lyrs...>>> 
+	{
 		(ext::check_requirements(Exts{}, meta::List<typename Exts::Definition...>{}, meta::List<Lyrs...>{}), ...);
 		
 		InstanceInfo info;

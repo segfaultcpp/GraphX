@@ -5,35 +5,35 @@
 #endif
 
 namespace gx {
-	VkPresentModeKHR presentation_mode_to_vk(PresentationMode mode) noexcept {
-		switch (mode) {
-		case gx::PresentationMode::eFifo:
-			return VK_PRESENT_MODE_FIFO_KHR;
-		case gx::PresentationMode::eFifoRelaxed:
-			return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
-		case gx::PresentationMode::eMailbox:
-			return VK_PRESENT_MODE_MAILBOX_KHR;
-		}
-		return VK_PRESENT_MODE_IMMEDIATE_KHR;
-	}
-
-	namespace details {
-		Result<VkSurfaceKHR> GetSurfaceExtImpl_<Platform::eWindows>::create_surface(VkInstance instance, HINSTANCE app, HWND window) noexcept {
-#ifdef GX_WIN64
-			VkSurfaceKHR surface;
-
-			VkWin32SurfaceCreateInfoKHR createInfo = {
-				.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-				.hinstance = app,
-				.hwnd = window,
-			};
-
-			auto res = vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface);
-			if (res == VK_SUCCESS) {
-				return surface;
+	namespace ext {
+		VkPresentModeKHR presentation_mode_to_vk(PresentationMode mode) noexcept {
+			switch (mode) {
+			case PresentationMode::eFifo:
+				return VK_PRESENT_MODE_FIFO_KHR;
+			case PresentationMode::eFifoRelaxed:
+				return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+			case PresentationMode::eMailbox:
+				return VK_PRESENT_MODE_MAILBOX_KHR;
 			}
-			return eh::Error{ convert_vk_result(res) };
+			return VK_PRESENT_MODE_IMMEDIATE_KHR;
+		}
+
+		namespace details {
+			VkResult GetSurfaceExtImpl_<Platform::eWindows>::create_surface(VkInstance instance, HINSTANCE app, HWND window, VkSurfaceKHR& surface) noexcept {
+#ifdef GX_WIN64
+				VkWin32SurfaceCreateInfoKHR createInfo = {
+					.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+					.hinstance = app,
+					.hwnd = window,
+				};
+
+				return vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface);
 #endif
+			}
+
+			void GetSurfaceExtImpl_<Platform::eWindows>::destroy_surface(VkInstance instance, VkSurfaceKHR surface, const VkAllocationCallbacks* allocator) noexcept {
+				vkDestroySurfaceKHR(instance, surface, allocator);
+			}
 		}
 	}
 }
