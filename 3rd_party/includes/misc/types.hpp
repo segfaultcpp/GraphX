@@ -18,29 +18,27 @@ using isize = i64;
 using f32 = float;
 using f64 = double;
 
-enum class Platform {
-	eLinux,
-	eWindows,
-};
+struct WindowsPlatform {};
+struct LinuxPlatform {};
 
-template<Platform P>
+template<typename>
 struct PlatformTraits;
 
 #ifdef _WIN32
 #include <Windows.h>
 
 template<>
-struct PlatformTraits<Platform::eWindows> {
+struct PlatformTraits<WindowsPlatform> {
 	using AppInstance = HINSTANCE;
 	using WindowHandle = HWND;
 };
 
-consteval Platform get_platform() noexcept {
-	return Platform::eWindows;
+consteval WindowsPlatform get_platform() noexcept {
+	return WindowsPlatform{};
 }
 #elif defined(__linux__)
-consteval Platform get_platform() noexcept {
-	return Platform::eLinux;
+consteval LinuxPlatform get_platform() noexcept {
+	return LinuxPlatform{};
 }
 #endif
 

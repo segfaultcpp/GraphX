@@ -12,6 +12,12 @@ static_assert(std::integral<I>); \
 constexpr I operator|(E lhs, E rhs) noexcept { \
 	return static_cast<I>(lhs) | static_cast<I>(rhs); \
 } \
+constexpr I operator|(I lhs, E rhs) noexcept { \
+	return lhs | static_cast<I>(rhs);\
+} \
+constexpr I operator|(E lhs, I rhs) noexcept { \
+	return static_cast<I>(lhs) | rhs;\
+} \
 constexpr I operator |=(I lhs, E rhs) noexcept { \
 	return static_cast<E>(lhs) | rhs; \
 } \

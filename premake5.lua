@@ -3,7 +3,7 @@ workspace "GraphX"
     platforms { "Win64", "Linux" }
     location "proj_files"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
     architecture "x86_64"
     includedirs { "3rd_party/includes", "includes/" }
     libdirs { "3rd_party/libs" }
