@@ -36,7 +36,7 @@ namespace gx {
 		{}
 
 		auto get_handle(this const View self) noexcept {
-			return self.value.handle;
+			return self.value_.handle;
 		}
 
 		auto get_parent(this const View self) noexcept requires DependentValue<V> {
@@ -123,3 +123,10 @@ namespace gx {
 		}
 	};
 }
+
+#define DECLARE_GX_OBJECT(Name, V, Impl, ...) \
+using Name = gx::ValueType<V, Impl, __VA_ARGS__>; 
+
+#define DECLARE_VIEWABLE_GX_OBJECT(Name, V, Impl, ...) \
+using Name = gx::ValueType<V, Impl, gx::ViewableTag, __VA_ARGS__>; \
+using Name##View = decltype(std::declval<Name&>().get_view()); 

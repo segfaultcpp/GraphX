@@ -25,16 +25,6 @@ namespace meta
 	template<typename T, typename... Params>
 	concept Lambda = std::is_object_v<T> && !std::is_pointer_v<T> && std::is_invocable_v<T, Params...>;
 
-	template<typename T, typename Proj, typename... Args>
-	concept IsMember = requires(T obj, Proj proj, Args... args) {
-		std::invoke(proj, obj, std::forward<Args>(args)...);
-	};
-
-	template<typename T, typename Proj, typename Ret, typename... Args>
-	concept IsMemberR = requires(T obj, Proj proj, Args... args) {
-		{ std::invoke(proj, obj, std::forward<Args>(args)...) } -> std::same_as<Ret>;
-	};
-
 	namespace details {
 		template<typename T, typename... Args>
 		struct SameAsAny {
