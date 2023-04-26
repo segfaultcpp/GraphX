@@ -8,7 +8,14 @@
 
 #include <misc/types.hpp>
 
+static void hack() noexcept {
+	SetEnvironmentVariableA("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1");
+	SetEnvironmentVariableA("DISABLE_LAYER_NV_OPTIMUS_1", "1");
+}
+
 int main() {
+	hack();
+
 	auto instance = gx::InstanceBuilder{}
 		.with_app_info("app name", gx::Version(0, 1))
 		.with_engine_info("No Engine", gx::Version(1, 0))

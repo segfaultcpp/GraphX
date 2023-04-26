@@ -280,7 +280,7 @@ namespace gx {
 		return filter_by_requested_phys_device_type(PhysicalDeviceType::eIntegratedGpu);
 	}
 
-	auto request_presentation_support(ext::SurfaceView surface) noexcept {
+	inline auto request_presentation_support(ext::SurfaceView surface) noexcept {
 		return std::views::filter(
 			[surface](PhysDevice device) noexcept {
 				return device.supports_presentation(surface).has_value();
