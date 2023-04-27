@@ -100,9 +100,14 @@ namespace gx {
 	};
 	static_assert(Value<DeviceValue>);
 
-	struct DeviceImpl {};
+	template<typename E = meta::List<>>
+	struct DeviceImpl;
 
-	using Device = ValueType<DeviceValue, DeviceImpl, MoveOnlyTag, ViewableTag>;
+	template<typename... Es>
+	struct DeviceImpl<meta::List<Es...>> {};
+
+	template<typename... Es>
+	using Device = ValueType<DeviceValue, DeviceImpl<meta::List<Es...>>, MoveOnlyTag, ViewableTag>;
 
 	template<typename Es = meta::List<>>
 	struct DeviceBuilder;
@@ -123,6 +128,11 @@ namespace gx {
 		DeviceBuilder& with_phys_device(VkPhysicalDevice device) noexcept {
 			phys_device = device;
 			return *this;
+		}
+
+		template<ext::DeviceExt... Es1>
+		auto with_extensions() noexcept {
+			return DeviceBuilder<meta::List<Es1..., Es...>>{ phys_device, requested_queues };
 		}
 
 		[[nodiscard]]
@@ -147,7 +157,7 @@ namespace gx {
 		}
 
 		[[nodiscard]]
-		auto build() const noexcept -> std::expected<Device, ErrorCode> {
+		auto build() const noexcept -> std::expected<Device<meta::List<Es...>>, ErrorCode> {
 			const auto& qi = PhysDeviceInfo::get(phys_device).queue_infos;
 			auto by_count = [](QueueInfo info) noexcept {
 				return info.count != 0;
@@ -177,11 +187,17 @@ namespace gx {
 				.pEnabledFeatures = &features,
 			};
 
+			if constexpr (sizeof...(Es) > 0) {
+				static constexpr std::array kRequiredExts = ext::to_array<Es...>();
+				device_info.enabledExtensionCount = static_cast<u32>(kRequiredExts.size());
+				device_info.ppEnabledExtensionNames = kRequiredExts.data();
+			}
+
 			DeviceValue device{};
 			VkResult res = vkCreateDevice(phys_device, &device_info, nullptr, &device.handle);
 
 			if (res == VK_SUCCESS) {
-				return Device{ device };
+				return Device<meta::List<Es...>>{ device };
 			}
 
 			return std::unexpected(convert_vk_result(res));
@@ -216,7 +232,10 @@ namespace gx {
 			return PhysDeviceInfo::get(self.handle_);
 		}
 
+		[[nodiscard]]
 		std::optional<QueueType> supports_presentation(this const PhysDevice self, ext::SurfaceView surface) noexcept;
+		[[nodiscard]]
+		ext::SwapchainSupport query_swapchain_support(this const PhysDevice self, ext::SurfaceView surface) noexcept;
 	};
 	static_assert(std::is_trivially_copyable_v<PhysDevice>);
 

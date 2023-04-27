@@ -20,22 +20,44 @@
 #include "error.hpp"
 
 namespace gx::ext {
-	struct ExtensionList {
-		static constexpr const char* khr_surface = "VK_KHR_surface";
-		static constexpr const char* khr_win32_surface = "VK_KHR_win32_surface";
-		static constexpr const char* ext_debug_utils = "VK_EXT_debug_utils";
-		static constexpr const char* khr_swapchain = "VK_KHR_swapchain";
+	struct InstanceExtensionList {
+		static constexpr const char* kKhrSurface = "VK_KHR_surface";
+		static constexpr const char* kKhrWin32Surface = "VK_KHR_win32_surface";
+		static constexpr const char* kExtDebugUtils = "VK_EXT_debug_utils";
+	};
+
+	struct DeviceExtensionList {
+		static constexpr const char* kKhrSwapchain = "VK_KHR_swapchain";
 	};
 
 	struct LayerList {
-		static constexpr const char* khr_validation = "VK_LAYER_KHRONOS_validation";
+		static constexpr const char* kKhrValidation = "VK_LAYER_KHRONOS_validation";
 	};
+
+	struct InstanceExtTag {};
+	struct DeviceExtTag {};
 
 	template<typename T>
 	concept Extension = requires(VkInstance instance) {
 		T::get();
 		T::load(instance);
 	};
+
+	template<typename T>
+	concept InstanceExt = Extension<T> && std::derived_from<T, InstanceExtTag>;
+
+	template<typename T>
+	concept DeviceExt = Extension<T> && std::derived_from <T, DeviceExtTag>;
+
+	template<Extension... Es>
+	constexpr auto to_array() noexcept {
+		return [](auto&&... args) {
+					constexpr usize size = (0 + ... + std::size(Es::get()));
+					std::array<const char*, size> ret = {}; usize i = 0;
+					((std::ranges::copy(std::begin(args), std::end(args), ret.begin() + i), i += std::size(args)), ...);
+					return ret;
+				}(Es::get()...);
+	}
 
 	struct FuncLoader {
 		template<typename FnPtr> requires std::is_pointer_v<FnPtr>
@@ -49,12 +71,12 @@ namespace gx::ext {
 		}
 	};
 
-	struct DebugUtilsExt {
+	struct DebugUtilsExt : InstanceExtTag {
 		static PFN_vkCreateDebugUtilsMessengerEXT create_fn;
 		static PFN_vkDestroyDebugUtilsMessengerEXT destroy_fn;
 
 		static constexpr auto get() noexcept {
-			return std::array{ ExtensionList::ext_debug_utils };
+			return std::array{ InstanceExtensionList::kExtDebugUtils };
 		}
 
 		static void load(VkInstance instance) noexcept {
@@ -63,7 +85,7 @@ namespace gx::ext {
 			destroy_fn = FuncLoader::load<decltype(destroy_fn)>(instance, "vkDestroyDebugUtilsMessengerEXT").value();
 		}
 	};
-	static_assert(Extension<DebugUtilsExt>);
+	static_assert(InstanceExt<DebugUtilsExt>);
 
 	inline PFN_vkCreateDebugUtilsMessengerEXT DebugUtilsExt::create_fn = nullptr;
 	inline PFN_vkDestroyDebugUtilsMessengerEXT DebugUtilsExt::destroy_fn = nullptr;
@@ -138,14 +160,14 @@ namespace gx::ext {
 			void* user_data);
 	};
 
-	struct SurfaceExt {
+	struct SurfaceExt : InstanceExtTag{
 		static constexpr auto get() noexcept {
-			return std::array{ ExtensionList::khr_surface };
+			return std::array{ InstanceExtensionList::kKhrSurface };
 		}
 
 		static void load(VkInstance instance) noexcept {}
 	};
-	static_assert(Extension<SurfaceExt>);
+	static_assert(InstanceExt<SurfaceExt>);
 
 	struct SurfaceValue {
 		VkSurfaceKHR handle = VK_NULL_HANDLE;
@@ -164,27 +186,94 @@ namespace gx::ext {
 	};
 	static_assert(Value<SurfaceValue>);
 
-	struct SurfaceImpl {
-		template<typename Self>
-		auto get_ext_swapchain_builder() noexcept {
+	struct SurfaceImpl {};
 
-		}
-	};
+	DECLARE_VIEWABLE_GX_OBJECT(Surface, SurfaceValue, SurfaceImpl, MoveOnlyTag);
 
-	DECLARE_VIEWABLE_GX_OBJECT(Surface, SurfaceValue, SurfaceImpl, MoveOnlyTag, ViewableTag);
-
-	struct SwapchainExt {
+	struct SwapchainExt : DeviceExtTag {
 		static constexpr auto get() noexcept {
-			return std::array{ ExtensionList::khr_swapchain };
+			return std::array{ DeviceExtensionList::kKhrSwapchain };
 		}
 
 		static void load(VkInstance instance) noexcept {}
 	};
-	static_assert(Extension<SwapchainExt>);
+	static_assert(DeviceExt<SwapchainExt>);
+
+	enum class ColorSpace {
+		eSRGB_Nonlinear,
+	};
+
+	[[nodiscard]]
+	ColorSpace color_space_from_vk(VkColorSpaceKHR color_space) noexcept;
+
+	[[nodiscard]]
+	VkColorSpaceKHR color_space_to_vk(ColorSpace color_space) noexcept;
+
+	enum class PresentMode {
+		eImmediate,
+		eFifo,
+		eFifoRelaxed,
+		eMailbox,
+	};
+
+	[[nodiscard]]
+	PresentMode present_mode_from_vk(VkPresentModeKHR mode) noexcept;
+
+	[[nodiscard]]
+	VkPresentModeKHR present_mode_to_vk(PresentMode mode) noexcept;
+
+	struct SurfaceCapabilities {
+		Extent2D current_extent;
+		Extent2D min_image_extent;
+		Extent2D max_image_extent;
+		u32 min_image_count;
+		u32 max_image_count;
+		u32 max_image_array_layers;
+		// TODO
+	
+		[[nodiscard]]
+		static SurfaceCapabilities from_vk(const VkSurfaceCapabilitiesKHR& caps) noexcept;
+	};
+
+	struct SurfaceFormat {
+		Format format;
+		ColorSpace color_space;
+
+		[[nodiscard]]
+		static SurfaceFormat from_vk(const VkSurfaceFormatKHR& format) noexcept;
+	};
+
+	struct SwapchainSupport {
+		ext::SurfaceCapabilities caps;
+		std::vector<ext::SurfaceFormat> formats;
+		std::vector<ext::PresentMode> present_modes;
+	};
+
+	struct SwapchainValue {
+		VkSwapchainKHR handle = VK_NULL_HANDLE;
+		VkDevice parent = VK_NULL_HANDLE;
+
+		SwapchainValue() noexcept = default;
+
+		SwapchainValue(VkSwapchainKHR swapchain, VkDevice device) noexcept
+			: handle{ swapchain }
+			, parent{ device }
+		{}
+
+		void destroy(this SwapchainValue self) noexcept {
+			vkDestroySwapchainKHR(self.parent, self.handle, nullptr);
+		}
+	};
+	static_assert(Value<SwapchainValue>);
+
+	struct SwapchainImpl {};
+
+	DECLARE_GX_OBJECT(Swapchain, SwapchainValue, SwapchainImpl, MoveOnlyTag);
 
 	struct SwapchainBuilder {
 	private:
-
+		VkDevice device_ = VK_NULL_HANDLE;
+		SurfaceView surface_{};
 
 	public:
 
@@ -192,14 +281,14 @@ namespace gx::ext {
 	};
 
 #ifdef GX_WIN64
-	struct Win32SurfaceExt {
+	struct Win32SurfaceExt : InstanceExtTag {
 		static constexpr auto get() noexcept {
-			return std::array{ ExtensionList::khr_win32_surface };
+			return std::array{ InstanceExtensionList::kKhrWin32Surface };
 		}
 
 		static void load(VkInstance instance) noexcept {}
 	};
-	static_assert(Extension<Win32SurfaceExt>);
+	static_assert(InstanceExt<Win32SurfaceExt>);
 
 	struct Win32SurfaceBuilder {
 	private:
@@ -223,6 +312,6 @@ namespace gx::ext {
 #endif
 
 	struct ValidationLayer {
-		static constexpr auto name = LayerList::khr_validation;
+		static constexpr auto name = LayerList::kKhrValidation;
 	};
 }

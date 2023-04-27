@@ -34,8 +34,11 @@ int main() {
 	assert(!suited_devices.empty());
 
 	auto phys_device = *suited_devices.begin();
+	auto sc_support = phys_device.query_swapchain_support(surface.get_view());
 
-	auto device = phys_device.get_device_builder().build().value();
+	auto device = phys_device.get_device_builder()
+		.with_extensions<gx::ext::SwapchainExt>()
+		.build().value();
 	
 
 	return 0;

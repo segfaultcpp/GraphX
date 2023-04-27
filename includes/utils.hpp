@@ -42,4 +42,10 @@ namespace gx {
 	constexpr usize gb_to_bytes(usize value) noexcept {
 		return mb_to_bytes(value) * 1024;
 	}
+
+#ifdef GX_DEBUG
+	inline constexpr bool kIsDebugMode = true;
+#else
+	inline constexpr bool kIsDebugMode = false;
+#endif
 }

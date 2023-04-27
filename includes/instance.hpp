@@ -120,7 +120,7 @@ namespace gx {
 	template<typename E = meta::List<>, typename L = meta::List<>>
 	struct InstanceBuilder;
 
-	template<typename... Es, typename... Ls>
+	template<ext::InstanceExt... Es, typename... Ls>
 	struct InstanceBuilder<meta::List<Es...>, meta::List<Ls...>> {
 		std::string_view app_name = "unknown";
 		Version app_version = Version::get_graphx_version();
@@ -153,7 +153,7 @@ namespace gx {
 			return InstanceBuilder{ app_name, app_version, engine_name, engine_version, version };
 		}
 
-		template<typename... Es1>
+		template<ext::InstanceExt... Es1>
 		[[nodiscard]]
 		constexpr auto with_extensions() const noexcept {
 			return InstanceBuilder<meta::List<Es1..., Es...>, meta::List<Ls...>>{ app_name, app_version, engine_name, engine_version, vulkan_version };
@@ -184,15 +184,10 @@ namespace gx {
 			};
 
 			if constexpr (sizeof...(Es) > 0) {
-				static constexpr std::array required_exts = [](auto&&... args) {
-					constexpr usize size = (0 + ... + std::size(Es::get()));
-					std::array<const char*, size> ret = {}; usize i = 0;
-					((std::ranges::copy(std::begin(args), std::end(args), ret.begin() + i), i += std::size(args)), ...);
-					return ret;
-				}(Es::get()...);
+				static constexpr std::array kRequiredExts = ext::to_array<Es...>();
 			
-				inst_create_info.enabledExtensionCount = static_cast<u32>(required_exts.size());
-				inst_create_info.ppEnabledExtensionNames = required_exts.data();
+				inst_create_info.enabledExtensionCount = static_cast<u32>(kRequiredExts.size());
+				inst_create_info.ppEnabledExtensionNames = kRequiredExts.data();
 			}
 
 			if constexpr (sizeof...(Ls) > 0) {
@@ -200,7 +195,7 @@ namespace gx {
 					Ls::name...
 				};
 
-				inst_create_info.enabledLayerCount = required_layers.size();
+				inst_create_info.enabledLayerCount = static_cast<u32>(required_layers.size());
 				inst_create_info.ppEnabledLayerNames = required_layers.data();
 			}
 

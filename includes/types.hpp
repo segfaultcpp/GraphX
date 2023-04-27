@@ -4,6 +4,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include <array>
+
 namespace gx {
 	struct MoveOnlyTag {};
 	struct CopyableTag {};
@@ -31,6 +33,8 @@ namespace gx {
 		V value_;
 
 	public:
+		View() noexcept = default;
+
 		View(V value) noexcept 
 			: value_{ value }
 		{}
@@ -51,8 +55,8 @@ namespace gx {
 		V value_;
 
 	public:
-		ValueType() noexcept = default;
-		ValueType(V value) noexcept : value_{ value } {}
+		explicit ValueType() noexcept = default;
+		explicit ValueType(V value) noexcept : value_{ value } {}
 
 		~ValueType() noexcept {
 			if (is_valid()) {
@@ -121,6 +125,41 @@ namespace gx {
 		auto get_handle() noexcept {
 			return value_.handle;
 		}
+	};
+
+	enum class Format {
+		eUndefined,
+		eBGRA8_SRGB,
+		eCount
+	};
+
+	[[nodiscard]]
+	inline Format format_from_vk(VkFormat format) noexcept {
+		switch (format) {
+		case VK_FORMAT_B8G8R8A8_SRGB:
+			return Format::eBGRA8_SRGB;
+		}
+		return Format::eUndefined;
+	}
+
+	[[nodiscard]]
+	inline VkFormat format_to_vk(Format format) noexcept {
+		static constexpr std::array kFormats = {
+			VK_FORMAT_UNDEFINED,
+			VK_FORMAT_B8G8R8A8_SRGB,
+		};
+		return kFormats[std::to_underlying(format)];
+	}
+
+	struct Extent2D {
+		u32 width = static_cast<u32>(~0);
+		u32 height = static_cast<u32>(~0);
+
+		constexpr Extent2D() noexcept = default;
+		constexpr Extent2D(u32 w, u32 h) noexcept
+			: width{ w }
+			, height{ h }
+		{}
 	};
 }
 

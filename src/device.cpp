@@ -117,9 +117,9 @@ namespace gx {
 	}
 
 	std::optional<QueueType> PhysDevice::supports_presentation(this const PhysDevice self, ext::SurfaceView surface) noexcept {
-		static constexpr auto q_types = std::array{ QueueType::eGraphics, QueueType::eCompute, QueueType::eTransfer };
+		static constexpr auto kQTypes = std::array{ QueueType::eGraphics, QueueType::eCompute, QueueType::eTransfer };
 		
-		for (auto type : q_types) {
+		for (auto type : kQTypes) {
 			VkBool32 supported = false;
 			PhysDeviceInfo::get(self).get_queue_index(type)
 				.and_then(
@@ -134,5 +134,34 @@ namespace gx {
 			}
 		}
 		return std::nullopt;
+	}
+
+	ext::SwapchainSupport PhysDevice::query_swapchain_support(this const PhysDevice self, ext::SurfaceView surface) noexcept
+	{
+		ext::SwapchainSupport support;
+
+		VkSurfaceCapabilitiesKHR caps{};
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(self.handle_, surface.get_handle(), &caps);
+		support.caps = ext::SurfaceCapabilities::from_vk(caps);
+
+		u32 count = 0;
+		vkGetPhysicalDeviceSurfaceFormatsKHR(self.handle_, surface.get_handle(), &count, nullptr);
+
+		if (count != 0) {
+			std::vector<VkSurfaceFormatKHR> formats(count);
+			vkGetPhysicalDeviceSurfaceFormatsKHR(self.handle_, surface.get_handle(), &count, formats.data());
+			support.formats = formats | std::views::transform(ext::SurfaceFormat::from_vk) | std::ranges::to<std::vector>();
+		}
+
+		count = 0;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(self.handle_, surface.get_handle(), &count, nullptr);
+
+		if (count != 0) {
+			std::vector<VkPresentModeKHR> modes(count);
+			vkGetPhysicalDeviceSurfacePresentModesKHR(self.handle_, surface.get_handle(), &count, modes.data());
+			support.present_modes = modes | std::views::transform(ext::present_mode_from_vk) | std::ranges::to<std::vector>();
+		}
+
+		return support;
 	}
 }
