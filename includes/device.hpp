@@ -104,10 +104,17 @@ namespace gx {
 	struct DeviceImpl;
 
 	template<typename... Es>
-	struct DeviceImpl<meta::List<Es...>> {};
+	struct DeviceImpl<meta::List<Es...>> {
+		template<typename Self> 
+			requires meta::SameAsAny<ext::SwapchainExt, Es...>
+		[[nodiscard]]
+		ext::SwapchainBuilder get_swapchain_builder(this Self&& self) noexcept {
+			return ext::SwapchainBuilder{ self.get_handle() };
+		}
+	};
 
-	template<typename... Es>
-	using Device = ValueType<DeviceValue, DeviceImpl<meta::List<Es...>>, MoveOnlyTag, ViewableTag>;
+	template<typename E>
+	using Device = ValueType<DeviceValue, DeviceImpl<E>, MoveOnlyTag, ViewableTag>;
 
 	template<typename Es = meta::List<>>
 	struct DeviceBuilder;
@@ -239,6 +246,7 @@ namespace gx {
 	};
 	static_assert(std::is_trivially_copyable_v<PhysDevice>);
 
+	[[nodiscard]]
 	constexpr auto enum_phys_device_infos() noexcept {
 		return std::views::transform(
 			[](PhysDevice device) noexcept -> decltype(auto) {
@@ -247,21 +255,23 @@ namespace gx {
 		);
 	}
 
+	[[nodiscard]]
 	constexpr auto filter_by_min_vram_size(usize value) noexcept {
 		return std::views::filter(
 			[value](PhysDevice phys_device) noexcept {
-				const auto& info = phys_device.get_info();
-				auto it = std::ranges::find_if(info.memory_infos,
+				const auto& infos = phys_device.get_info().memory_infos;
+				auto it = std::ranges::find_if(infos,
 					[](const auto& el) {
-						return  (el.memory_properties & MemoryProperties::eDeviceLocal) != 0 &&
-							(el.memory_properties & MemoryProperties::eHostVisible) == 0;
+						return  test_bit(el.memory_properties, MemoryProperties::eDeviceLocal) &&
+							!test_bit(el.memory_properties, MemoryProperties::eHostVisible);
 					});
 
-				return it != info.memory_infos.end() ? (*it).budget >= value : false;
+				return it != infos.end() ? (*it).budget >= value : false;
 			}
 		);
 	}
 
+	[[nodiscard]]
 	constexpr auto filter_by_requested_queue(QueueType type) noexcept {
 		return std::views::filter(
 			[type](PhysDevice phys_device) noexcept {
@@ -271,18 +281,22 @@ namespace gx {
 		);
 	}
 
+	[[nodiscard]]
 	constexpr auto request_graphics_queue() noexcept {
 		return filter_by_requested_queue(QueueType::eGraphics);
 	}
 
+	[[nodiscard]]
 	constexpr auto request_transfer_queue() noexcept {
 		return filter_by_requested_queue(QueueType::eTransfer);
 	}
 
+	[[nodiscard]]
 	constexpr auto request_compute_queue() noexcept {
 		return filter_by_requested_queue(QueueType::eCompute);
 	}
 
+	[[nodiscard]]
 	constexpr auto filter_by_requested_phys_device_type(PhysicalDeviceType type) {
 		return std::views::filter(
 			[type](PhysDevice phys_device) noexcept {
@@ -291,14 +305,17 @@ namespace gx {
 		);
 	}
 
+	[[nodiscard]]
 	constexpr auto request_discrete_gpu() noexcept {
 		return filter_by_requested_phys_device_type(PhysicalDeviceType::eDiscreteGpu);
 	}
 
+	[[nodiscard]]
 	constexpr auto request_integrated_gpu() noexcept {
 		return filter_by_requested_phys_device_type(PhysicalDeviceType::eIntegratedGpu);
 	}
 
+	[[nodiscard]]
 	inline auto request_presentation_support(ext::SurfaceView surface) noexcept {
 		return std::views::filter(
 			[surface](PhysDevice device) noexcept {

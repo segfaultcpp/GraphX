@@ -191,4 +191,11 @@ namespace gx::ext {
 			.color_space = color_space_from_vk(format.colorSpace),
 		};
 	}
+
+	VkSurfaceFormatKHR SurfaceFormat::to_vk(this SurfaceFormat self) noexcept {
+		return VkSurfaceFormatKHR{
+			.format = format_to_vk(self.format),
+			.colorSpace = color_space_to_vk(self.color_space),
+		};
+	}
 }

@@ -8,6 +8,8 @@
 #define OVERLOAD_BIT_OPS(E, I) \
 static_assert(std::is_enum_v<E>); \
 static_assert(std::integral<I>); \
+static_assert(std::same_as<decltype(std::to_underlying(E{})), I>); \
+using E##Flags = I; \
 constexpr I operator|(E lhs, E rhs) noexcept { \
 	return static_cast<I>(lhs) | static_cast<I>(rhs); \
 } \
@@ -42,6 +44,24 @@ namespace gx {
 	constexpr usize gb_to_bytes(usize value) noexcept {
 		return mb_to_bytes(value) * 1024;
 	}
+
+	template<typename E>
+		requires std::is_enum_v<E>
+	constexpr bool test_bit(decltype(std::to_underlying(E{})) flags, E bit) noexcept {
+		return static_cast<bool>(flags & std::to_underlying(bit));
+	}
+
+	static_assert(
+		[]() {
+			enum class TestFlags : u8 {
+				e1stBit = bit<u8, 0>(),
+				e2ndBit = bit<u8, 1>(),
+				e3rdBit = bit<u8, 2>(),
+			};
+			u8 flags = std::to_underlying(TestFlags::e1stBit) | std::to_underlying(TestFlags::e2ndBit);
+			return test_bit(flags, TestFlags::e1stBit) && test_bit(flags, TestFlags::e2ndBit) && !test_bit(flags, TestFlags::e3rdBit);
+		}() == true
+	);
 
 #ifdef GX_DEBUG
 	inline constexpr bool kIsDebugMode = true;

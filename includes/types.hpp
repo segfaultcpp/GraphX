@@ -6,6 +6,8 @@
 
 #include <array>
 
+#include "utils.hpp"
+
 namespace gx {
 	struct MoveOnlyTag {};
 	struct CopyableTag {};
@@ -151,6 +153,51 @@ namespace gx {
 		return kFormats[std::to_underlying(format)];
 	}
 
+	enum class ImageUsage : u32 {
+		eColorAttachment = bit<u32, 0>(),
+	};
+
+	OVERLOAD_BIT_OPS(ImageUsage, u32);
+
+	[[nodiscard]]
+	inline u32 image_usage_from_vk(VkImageUsageFlags flags) noexcept {
+		u32 ret = 0;
+		if (test_bit(flags, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
+			ret |= ImageUsage::eColorAttachment;
+		}
+		return ret;
+	}
+
+	[[nodiscard]]
+	inline VkImageUsageFlags image_usage_to_vk(u32 flags) noexcept {
+		VkImageUsageFlags ret = 0;
+		if (test_bit(flags, ImageUsage::eColorAttachment)) {
+			ret |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		}
+		return ret;
+	}
+
+	enum class SharingMode {
+		eExclusive, 
+		eConcurrent,
+	};
+
+	[[nodiscard]]
+	inline SharingMode sharing_mode_from_vk(VkSharingMode mode) noexcept {
+		if (mode == VK_SHARING_MODE_CONCURRENT) {
+			return SharingMode::eConcurrent;
+		}
+		return SharingMode::eExclusive;
+	}
+
+	[[nodiscard]]
+	inline VkSharingMode sharing_mode_to_vk(SharingMode mode) noexcept {
+		if (mode == SharingMode::eConcurrent) {
+			return VK_SHARING_MODE_CONCURRENT;
+		}
+		return VK_SHARING_MODE_EXCLUSIVE;
+	}
+
 	struct Extent2D {
 		u32 width = static_cast<u32>(~0);
 		u32 height = static_cast<u32>(~0);
@@ -160,6 +207,19 @@ namespace gx {
 			: width{ w }
 			, height{ h }
 		{}
+
+		[[nodiscard]]
+		static constexpr Extent2D from_vk(VkExtent2D extent) noexcept {
+			return Extent2D{ extent.width, extent.height };
+		}
+
+		[[nodiscard]]
+		constexpr VkExtent2D to_vk(this Extent2D self) noexcept {
+			return VkExtent2D{
+				.width = self.width,
+				.height = self.height,
+			};
+		}
 	};
 }
 

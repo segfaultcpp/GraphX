@@ -100,6 +100,7 @@ namespace gx {
 #endif
 
 		template<typename Self>
+		[[nodiscard]]
 		auto enum_phys_devices(this Self&& self) noexcept {
 			u32 count = 0;
 			vkEnumeratePhysicalDevices(self.get_handle(), &count, nullptr);

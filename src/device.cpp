@@ -26,13 +26,13 @@ namespace gx {
 		for (usize i : std::ranges::views::iota(0u, mem_props.memoryTypeCount)) {
 			auto mem_type = mem_props.memoryTypes[i];
 
-			if ((mem_type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0) {
+			if (test_bit(mem_type.propertyFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
 				info.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eDeviceLocal);
 			}
-			if ((mem_type.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0) {
+			if (test_bit(mem_type.propertyFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
 				info.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eHostVisible);
 			}
-			if ((mem_type.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0) {
+			if (test_bit(mem_type.propertyFlags, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
 				info.memory_infos[i].memory_properties |= static_cast<u8>(MemoryProperties::eHostCoherent);
 			}
 
@@ -59,7 +59,7 @@ namespace gx {
 		info.queue_infos.clear();
 
 		for (auto [i, el] : std::views::zip(std::views::iota(0u), q_props)) {
-			if (el.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			if (test_bit(el.queueFlags, VK_QUEUE_GRAPHICS_BIT)) {
 				info.queue_infos.push_back(
 					QueueInfo {
 						.type = QueueType::eGraphics,
@@ -68,7 +68,7 @@ namespace gx {
 					}
 				);
 			}
-			else if (el.queueFlags & VK_QUEUE_COMPUTE_BIT && el.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+			else if (test_bit(el.queueFlags, VK_QUEUE_COMPUTE_BIT) && test_bit(el.queueFlags, VK_QUEUE_TRANSFER_BIT)) {
 				info.queue_infos.push_back(
 					QueueInfo {
 						.type = QueueType::eCompute,
@@ -77,7 +77,7 @@ namespace gx {
 					}
 				);
 			}
-			else if (el.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+			else if (test_bit(el.queueFlags, VK_QUEUE_TRANSFER_BIT)) {
 				info.queue_infos.push_back(
 					QueueInfo {
 						.type = QueueType::eTransfer,
@@ -121,7 +121,7 @@ namespace gx {
 		
 		for (auto type : kQTypes) {
 			VkBool32 supported = false;
-			PhysDeviceInfo::get(self).get_queue_index(type)
+			self.get_info().get_queue_index(type)
 				.and_then(
 					[self, surface, &supported](u32 index) noexcept -> std::optional<u32> {
 						vkGetPhysicalDeviceSurfaceSupportKHR(self.get_handle(), index, surface.get_handle(), &supported);

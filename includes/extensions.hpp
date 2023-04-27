@@ -51,12 +51,13 @@ namespace gx::ext {
 
 	template<Extension... Es>
 	constexpr auto to_array() noexcept {
-		return [](auto&&... args) {
-					constexpr usize size = (0 + ... + std::size(Es::get()));
-					std::array<const char*, size> ret = {}; usize i = 0;
-					((std::ranges::copy(std::begin(args), std::end(args), ret.begin() + i), i += std::size(args)), ...);
-					return ret;
-				}(Es::get()...);
+		return 
+			[](auto&&... args) {
+				constexpr usize size = (0 + ... + std::size(Es::get()));
+				std::array<const char*, size> ret = {}; usize i = 0;
+				((std::ranges::copy(std::begin(args), std::end(args), ret.begin() + i), i += std::size(args)), ...);
+				return ret;
+			}(Es::get()...);
 	}
 
 	struct FuncLoader {
@@ -241,6 +242,9 @@ namespace gx::ext {
 
 		[[nodiscard]]
 		static SurfaceFormat from_vk(const VkSurfaceFormatKHR& format) noexcept;
+		
+		[[nodiscard]]
+		VkSurfaceFormatKHR to_vk(this SurfaceFormat self) noexcept;
 	};
 
 	struct SwapchainSupport {
@@ -273,11 +277,115 @@ namespace gx::ext {
 	struct SwapchainBuilder {
 	private:
 		VkDevice device_ = VK_NULL_HANDLE;
+	
+	public:
 		SurfaceView surface_{};
+		u32 min_image_count_ = 2;
+		u32 image_array_layers_ = 1;
+		Format image_format_ = Format::eUndefined;
+		ColorSpace color_space_ = ColorSpace::eSRGB_Nonlinear;
+		Extent2D image_extent_;
+		ImageUsageFlags image_usage_ = std::to_underlying(ImageUsage::eColorAttachment);
+		SharingMode image_sharing_mode_ = SharingMode::eExclusive;
+		std::vector<u32> queue_familiy_indices_;
+		PresentMode present_mode_ = PresentMode::eFifo;
+		bool clipped_ = false;
 
 	public:
+		SwapchainBuilder(VkDevice device) noexcept
+			: device_{ device }
+		{}
 
+		[[nodiscard]]
+		SwapchainBuilder& with_surface(SurfaceView surface) noexcept {
+			surface_ = surface;
+			return *this;
+		}
 
+		[[nodiscard]]
+		SwapchainBuilder& with_image_sizes(Extent2D extent, u32 image_count, u32 array_layers = 1) noexcept {
+			image_extent_ = extent;
+			image_array_layers_ = array_layers;
+			min_image_count_ = image_count;
+			return *this;
+		}
+
+		[[nodiscard]]
+		SwapchainBuilder& with_image_format(Format format, ColorSpace color_space = ColorSpace::eSRGB_Nonlinear) noexcept {
+			image_format_ = format;
+			color_space_ = color_space;
+			return *this;
+		}
+
+		[[nodiscard]]
+		SwapchainBuilder& with_image_usage(ImageUsageFlags usage) noexcept {
+			image_usage_ = usage;
+			return *this;
+		}
+
+		[[nodiscard]]
+		SwapchainBuilder& with_queue_indices(std::vector<u32>&& indices) noexcept {
+			if (indices.size() > 1) {
+				image_sharing_mode_ = SharingMode::eConcurrent;
+			}
+			queue_familiy_indices_ = std::move(indices);
+
+			return *this;
+		}
+
+		[[nodiscard]]
+		SwapchainBuilder& with_queue_indices(std::span<u32> indices) noexcept {
+			return with_queue_indices(std::vector(indices.begin(), indices.end()));
+		}
+
+		[[nodiscard]]
+		SwapchainBuilder& with_present_mode(PresentMode mode) noexcept {
+			present_mode_ = mode;
+			return *this;
+		}
+
+		[[nodiscard]]
+		SwapchainBuilder& set_clipped(bool clipped) noexcept {
+			clipped_ = clipped;
+			return *this;
+		}
+
+		[[nodiscard]]
+		std::expected<Swapchain, ErrorCode> build() noexcept {
+			VkSwapchainCreateInfoKHR ci = {
+				.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+				.pNext = nullptr,
+				.flags = 0,
+				.surface = surface_.get_handle(),
+				.minImageCount = min_image_count_,
+				.imageFormat = format_to_vk(image_format_),
+				.imageColorSpace = color_space_to_vk(color_space_),
+				.imageExtent = image_extent_.to_vk(),
+				.imageArrayLayers = image_array_layers_,
+				.imageUsage = image_usage_to_vk(image_usage_),
+				.imageSharingMode = sharing_mode_to_vk(image_sharing_mode_),
+				.queueFamilyIndexCount = 0,
+				.pQueueFamilyIndices = nullptr,
+				.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+				.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR ,
+				.presentMode = present_mode_to_vk(present_mode_),
+				.clipped = clipped_,
+				.oldSwapchain = nullptr,
+			};
+
+			if (!queue_familiy_indices_.empty()) {
+				ci.pQueueFamilyIndices = queue_familiy_indices_.data();
+				ci.queueFamilyIndexCount = static_cast<u32>(queue_familiy_indices_.size());
+			}
+
+			SwapchainValue value{ VK_NULL_HANDLE, device_ };
+			VkResult res = vkCreateSwapchainKHR(device_, &ci, nullptr, &value.handle);
+
+			if (res == VK_SUCCESS) {
+				return Swapchain{ value };
+			}
+			return std::unexpected(convert_vk_result(res));
+		}
 	};
 
 #ifdef GX_WIN64

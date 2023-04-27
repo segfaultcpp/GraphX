@@ -30,7 +30,8 @@ int main() {
 	auto phys_devices = instance.enum_phys_devices();
 	assert(!phys_devices.empty());
 	
-	auto suited_devices = phys_devices | gx::request_discrete_gpu() | gx::request_presentation_support(surface.get_view());
+	auto suited_devices = phys_devices | gx::filter_by_min_vram_size(gx::mb_to_bytes(500)) | 
+		gx::request_discrete_gpu() | gx::request_presentation_support(surface.get_view());
 	assert(!suited_devices.empty());
 
 	auto phys_device = *suited_devices.begin();
@@ -40,6 +41,6 @@ int main() {
 		.with_extensions<gx::ext::SwapchainExt>()
 		.build().value();
 	
-
+	auto swapchain = device.get_swapchain_builder().build().value();
 	return 0;
 }
