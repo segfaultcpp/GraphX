@@ -4,6 +4,7 @@
 #include <optional>
 #include <map>
 #include <expected>
+#include <cassert>
 
 #include <vulkan/vulkan.h>
 
@@ -108,8 +109,8 @@ namespace gx {
 		template<typename Self> 
 			requires meta::SameAsAny<ext::SwapchainExt, Es...>
 		[[nodiscard]]
-		ext::SwapchainBuilder get_swapchain_builder(this Self&& self) noexcept {
-			return ext::SwapchainBuilder{ self.get_handle() };
+		ext::SwapchainBuilder get_ext_swapchain_builder(this Self&& self, ext::SurfaceView surface) noexcept {
+			return ext::SwapchainBuilder{ self.get_handle() }.with_surface(surface);
 		}
 	};
 
@@ -140,6 +141,11 @@ namespace gx {
 		template<ext::DeviceExt... Es1>
 		auto with_extensions() noexcept {
 			return DeviceBuilder<meta::List<Es1..., Es...>>{ phys_device, requested_queues };
+		}
+
+		template<ext::DeviceExt... Es1>
+		auto with_extensions(meta::List<Es1...>) noexcept {
+			return with_extensions<Es1...>();
 		}
 
 		[[nodiscard]]
@@ -174,15 +180,18 @@ namespace gx {
 			};
 			auto rq = requested_queues | std::views::filter(by_count) | std::views::filter(supported_by_device);
 
-			std::array<f32, 32> priors{ 1.f };
+			std::array<f32, 16> priors{ 1.f };
 			std::vector<VkDeviceQueueCreateInfo> q_infos;
-			for (auto [i, el] : std::views::zip(std::views::iota(0u), rq)) {
-				q_infos[i] = VkDeviceQueueCreateInfo{
+			for (auto el : rq) {
+				auto queue_index = PhysDeviceInfo::get(phys_device).get_queue_index(el.type);
+				assert(queue_index.has_value() && "TODO: DeviceBuilder::build()");
+
+				q_infos.push_back(VkDeviceQueueCreateInfo {
 					.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-					.queueFamilyIndex = PhysDeviceInfo::get(phys_device).get_queue_index(el.type).value(),
+					.queueFamilyIndex = queue_index.value(),
 					.queueCount = static_cast<u32>(el.count),
 					.pQueuePriorities = priors.data()
-				};
+				});
 			}
 
 			VkPhysicalDeviceFeatures features{};

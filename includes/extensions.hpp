@@ -318,6 +318,11 @@ namespace gx::ext {
 		}
 
 		[[nodiscard]]
+		SwapchainBuilder& with_image_format(SurfaceFormat format) noexcept {
+			return with_image_format(format.format, format.color_space);
+		}
+
+		[[nodiscard]]
 		SwapchainBuilder& with_image_usage(ImageUsageFlags usage) noexcept {
 			image_usage_ = usage;
 			return *this;

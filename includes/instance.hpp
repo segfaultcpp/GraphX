@@ -83,13 +83,6 @@ namespace gx {
 			return ext::DebugUtilsBuilder{}.with_instance(self.get_handle());
 		}
 
-		template<typename Self>
-			requires meta::SameAsAny<ext::SwapchainExt, Es...>
-		[[nodiscard]]
-		auto get_ext_swapchain_builder(this Self&& self) noexcept {
-
-		}
-
 #ifdef GX_WIN64
 		template<typename Self>
 			requires meta::SameAsAny<ext::SurfaceExt, Es...> && meta::SameAsAny<ext::Win32SurfaceExt, Es...>
@@ -160,12 +153,24 @@ namespace gx {
 			return InstanceBuilder<meta::List<Es1..., Es...>, meta::List<Ls...>>{ app_name, app_version, engine_name, engine_version, vulkan_version };
 		}
 
+		template<ext::InstanceExt... Es1>
+		[[nodiscard]]
+		constexpr auto with_extensions(meta::List<Es1...>) const noexcept {
+			return with_extensions<Es1...>();
+		}
+
 		template<typename... Ls1>
 		[[nodiscard]]
 		constexpr auto with_layers() const noexcept {
 			return InstanceBuilder<meta::List<Es...>, meta::List<Ls1..., Ls...>>{ app_name, app_version, engine_name, engine_version, vulkan_version };
 		}
 
+		template<typename... Ls1>
+		[[nodiscard]]
+		constexpr auto with_layers(meta::List<Ls1...>) const noexcept {
+			return with_layers<Ls1...>();
+		}
+		
 		[[nodiscard]]
 		auto build() const noexcept -> std::expected<Instance<meta::List<Es...>, meta::List<Ls...>>, ErrorCode> {
 			InstanceInfo info{};
