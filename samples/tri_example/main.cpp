@@ -98,18 +98,22 @@ public:
 		swap_chain_ = std::move(sc_res).value();
 	}
 
+	static LRESULT __stdcall wnd_proc_(HWND window, UINT msg, WPARAM wp, LPARAM lp) noexcept {
+		if (msg == WM_CLOSE) {
+			*std::bit_cast<bool*>(GetWindowLongPtrA(window, GWLP_USERDATA)) = true;
+		}
+		return DefWindowProcA(window, msg, wp, lp);
+	}
+
 	void run() noexcept {
 		bool closed = false;
+		SetWindowLongPtrA(window_, GWLP_USERDATA, std::bit_cast<LONG_PTR>(&closed));
 
 		while (!closed) {
 			MSG msg{};
 			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
-
-				if (msg.message == LOWORD(WM_CLOSE)) {
-					closed = true;
-				}
 			}
 		}
 	}
@@ -119,7 +123,7 @@ private:
 		WNDCLASSEXA wc;
 		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.style = CS_HREDRAW | CS_VREDRAW;
-		wc.lpfnWndProc = DefWindowProcA;
+		wc.lpfnWndProc = wnd_proc_;
 		wc.cbClsExtra = 0;
 		wc.cbWndExtra = 0;
 		wc.hInstance = GetModuleHandle(nullptr);

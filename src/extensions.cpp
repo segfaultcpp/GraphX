@@ -67,28 +67,6 @@ namespace gx::ext {
 		return DebugUtilsBuilder(self.instance_, self.msg_severity_, type);
 	}
 
-	auto DebugUtilsBuilder::build(this const DebugUtilsBuilder self, auto& callback) noexcept -> std::expected<DebugUtils, ErrorCode> {
-		auto vk_msg_severity = message_severity_to_vk(self.msg_severity_);
-		auto vk_msg_type = message_type_to_vk(self.msg_type_);
-
-		VkDebugUtilsMessengerCreateInfoEXT create_info = {
-			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-			.messageSeverity = vk_msg_severity,
-			.messageType = vk_msg_type,
-			.pfnUserCallback = &debug_utils_callback,
-			.pUserData = &callback,
-		};
-
-		VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;
-		VkResult res = DebugUtilsExt::create_fn(self.instance_, &create_info, nullptr, &messenger);
-
-		if (res == VK_SUCCESS) {
-			return DebugUtilsValue{ self.instance_, messenger };
-		}
-
-		return std::unexpected(convert_vk_result(res));
-	}
-
 	VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsBuilder::debug_utils_callback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 		VkDebugUtilsMessageTypeFlagsEXT type,
