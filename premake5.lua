@@ -18,7 +18,7 @@ workspace "GraphX"
 
     filter "configurations:Debug"
         symbols "ON"
-        defines "GX_DEBUG"
+        defines {"GX_DEBUG", "GX_INDEV"}
 
     filter "configurations:Release"
         optimize "ON"
@@ -28,11 +28,11 @@ workspace "GraphX"
     --tested only on msvc v19.34
     filter "configurations:ASan"
         symbols "ON"
-        defines "GX_ASAN"
+        defines {"GX_ASAN", "GX_INDEV"}
 
     filter "configurations:StaticAnalyzer"
         symbols "ON"
-        defines "GX_STATIC_ANALYZER"
+        defines {"GX_STATIC_ANALYZER", "GX_INDEV"}
 
     filter { "configurations:ASan", "toolset:clang" }
         buildoptions  "-fsanitize=address"

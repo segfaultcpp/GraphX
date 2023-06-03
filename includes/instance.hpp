@@ -109,7 +109,7 @@ namespace gx {
 	};
 
 	template<typename E, typename L>
-	using Instance = ValueType<InstanceValue, InstanceImpl<E, L>, MoveOnlyTag>;
+	using Instance = OwnedType<InstanceValue, InstanceImpl<E, L>, MoveOnlyTag>;
 
 	template<typename E = meta::List<>, typename L = meta::List<>>
 	struct InstanceBuilder;

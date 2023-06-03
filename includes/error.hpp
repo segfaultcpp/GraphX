@@ -103,3 +103,12 @@ struct eh::ErrorTypeTrait<gx::ErrorCode> {
 		return gx::ErrorCode::eSuccess;
 	}
 };
+
+namespace gx {
+	[[nodiscard]]
+	inline std::string stringify_error(ErrorCode code) noexcept {
+		return std::format("Error code name: {}\nError code description: {}\n", 
+			::eh::ErrorTypeTrait<ErrorCode>::stringify(code),
+			::eh::ErrorTypeTrait<ErrorCode>::description(code));
+	}
+}

@@ -14,6 +14,7 @@
 #include <array>
 #include <expected>
 #include <ranges>
+#include <cassert>
 
 #include "types.hpp"
 #include "utils.hpp"
@@ -128,33 +129,53 @@ namespace gx::ext {
 	OVERLOAD_BIT_OPS(MessageSeverity, u8);
 	OVERLOAD_BIT_OPS(MessageType, u8);
 
+	[[nodiscard]]
+	MessageSeverityFlags message_severity_flags_from_vk(VkDebugUtilsMessageSeverityFlagsEXT severity) noexcept;
+	[[nodiscard]]
 	MessageSeverity message_severity_from_vk(VkDebugUtilsMessageSeverityFlagBitsEXT severity) noexcept;
-	MessageType message_type_from_vk(VkDebugUtilsMessageTypeFlagsEXT type) noexcept;
-	VkDebugUtilsMessageSeverityFlagsEXT message_severity_to_vk(u8 from) noexcept;
-	VkDebugUtilsMessageTypeFlagsEXT message_type_to_vk(u8 from) noexcept;
+	[[nodiscard]]
+	MessageTypeFlags message_type_flags_from_vk(VkDebugUtilsMessageTypeFlagsEXT type) noexcept;
+	[[nodiscard]]
+	MessageType message_type_from_vk(VkDebugUtilsMessageTypeFlagBitsEXT type) noexcept;
+	[[nodiscard]]
+	VkDebugUtilsMessageSeverityFlagsEXT message_severity_flags_to_vk(MessageSeverityFlags from) noexcept;
+	[[nodiscard]]
+	VkDebugUtilsMessageSeverityFlagBitsEXT message_severity_to_vk(MessageSeverity from) noexcept;
+	[[nodiscard]]
+	VkDebugUtilsMessageTypeFlagsEXT message_type_flags_to_vk(MessageTypeFlags from) noexcept;
+	[[nodiscard]]
+	VkDebugUtilsMessageTypeFlagBitsEXT message_type_to_vk(MessageType from) noexcept;
+
 
 	struct DebugUtilsBuilder {
 	private:
 		VkInstance instance_ = VK_NULL_HANDLE;
-		u8 msg_severity_ = static_cast<u8>(MessageSeverity::eAll);
-		u8 msg_type_ = static_cast<u8>(MessageType::eAll);
+		MessageSeverityFlags severity_flags_ = static_cast<u8>(MessageSeverity::eAll);
+		MessageTypeFlags type_flags_ = static_cast<u8>(MessageType::eAll);
 
 	public:
 		DebugUtilsBuilder() noexcept = default;
 
-		DebugUtilsBuilder(VkInstance instance, u8 severity, u8 type) noexcept
+		DebugUtilsBuilder(VkInstance instance, MessageSeverityFlags severity_flags, MessageTypeFlags type_flags) noexcept
 			: instance_{ instance }
-			, msg_severity_{ severity }
-			, msg_type_{ type }
+			, severity_flags_{ severity_flags }
+			, type_flags_{ type_flags }
 		{}
 
+		[[nodiscard]]
 		DebugUtilsBuilder with_instance(this const DebugUtilsBuilder self, VkInstance instance) noexcept;
-		DebugUtilsBuilder with_msg_severity(this const DebugUtilsBuilder self, u8 severity) noexcept;
-		DebugUtilsBuilder with_msg_type(this const DebugUtilsBuilder self, u8 type) noexcept;
+		[[nodiscard]]
+		DebugUtilsBuilder with_msg_severity(this const DebugUtilsBuilder self, MessageSeverityFlags severity) noexcept;
+		[[nodiscard]]
+		DebugUtilsBuilder with_msg_type(this const DebugUtilsBuilder self, MessageTypeFlags type) noexcept;
 
-		auto build(this const DebugUtilsBuilder self, auto& callback) noexcept -> std::expected<DebugUtils, ErrorCode> {
-			auto vk_msg_severity = message_severity_to_vk(self.msg_severity_);
-			auto vk_msg_type = message_type_to_vk(self.msg_type_);
+		template<typename Callback> requires std::invocable<Callback, MessageSeverity, MessageTypeFlags>
+		[[nodiscard]]
+		auto build(this const DebugUtilsBuilder self, Callback& callback) noexcept -> std::expected<DebugUtils, ErrorCode> {
+			validate();
+
+			auto vk_msg_severity = message_severity_flags_to_vk(self.severity_flags_);
+			auto vk_msg_type = message_type_flags_to_vk(self.type_flags_);
 
 			VkDebugUtilsMessengerCreateInfoEXT create_info = {
 				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -180,6 +201,8 @@ namespace gx::ext {
 			VkDebugUtilsMessageTypeFlagsEXT type,
 			const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
 			void* user_data);
+
+		void validate(this const DebugUtilsBuilder self) noexcept;
 	};
 
 	struct SurfaceExt : InstanceExtTag{
@@ -293,7 +316,7 @@ namespace gx::ext {
 
 	struct SwapchainImpl {};
 
-	DECLARE_GX_OBJECT(Swapchain, SwapchainValue, SwapchainImpl, MoveOnlyTag);
+	DECLARE_VIEWABLE_GX_OBJECT(Swapchain, SwapchainValue, SwapchainImpl, MoveOnlyTag);
 
 	struct SwapchainBuilder {
 	private:
@@ -377,7 +400,7 @@ namespace gx::ext {
 		}
 
 		[[nodiscard]]
-		std::expected<Swapchain, ErrorCode> build() noexcept {
+		auto build() noexcept -> std::expected<Swapchain, ErrorCode> {
 			VkSwapchainCreateInfoKHR ci = {
 				.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 				.pNext = nullptr,
@@ -412,6 +435,10 @@ namespace gx::ext {
 			}
 			return std::unexpected(convert_vk_result(res));
 		}
+
+		void validate() const noexcept {
+			TODO("For Swapchain validation VkPhysicalDevice instance is needed");
+		}
 	};
 
 #ifdef GX_WIN64
@@ -442,6 +469,9 @@ namespace gx::ext {
 		Win32SurfaceBuilder with_instance(this const Win32SurfaceBuilder self, VkInstance instance) noexcept;
 		Win32SurfaceBuilder with_app_info(this const Win32SurfaceBuilder self, HWND window, HINSTANCE app) noexcept;
 		auto build(this const Win32SurfaceBuilder self) noexcept -> std::expected<Surface, ErrorCode>;
+
+	private:
+		void validate(this const Win32SurfaceBuilder self) noexcept;
 	};
 #endif
 

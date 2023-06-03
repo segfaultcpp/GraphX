@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 #include <cstddef>
+#include <string_view>
+#include <utility>
 
 using i8 = std::int8_t;
 using i16 = std::int16_t;
@@ -41,6 +43,15 @@ consteval LinuxPlatform get_platform() noexcept {
 	return LinuxPlatform{};
 }
 #endif
+
+[[noreturn]]
+inline void todo(std::string_view) noexcept {
+	std::unreachable();
+}
+
+#define TODO(msg) \
+i32 emit_warning = static_cast<usize>(~0); \
+todo(msg); \
 
 #if defined(_MSC_VER)
 #define NOINLINE __declspec(noinline)

@@ -5,15 +5,18 @@
 #include <vulkan/vulkan.h>
 
 #include <array>
+#include <cassert>
 
 #include "utils.hpp"
 
 namespace gx {
-	struct MoveOnlyTag {};
-	struct CopyableTag {};
-	struct PinnedTag {};
+	struct Tag{};
 
-	struct ViewableTag {};
+	struct MoveOnlyTag : Tag {};
+	struct CopyableTag : Tag {};
+	struct PinnedTag : Tag {};
+
+	struct ViewableTag : Tag {};
 
 	struct EmptyImpl {};
 
@@ -29,103 +32,241 @@ namespace gx {
 		obj.parent = VK_NULL_HANDLE;
 	};
 
+	template<typename T>
+	concept IsTag = std::derived_from<T, Tag>;
+
+	void clear_value(Value auto& value) noexcept {
+		value.handle = VK_NULL_HANDLE;
+
+		if constexpr (DependentValue<std::remove_cvref_t<decltype(value)>>) {
+			value.parent = VK_NULL_HANDLE;
+		}
+	}
+
 	template<Value V, typename Impl>
-	struct View final : Impl {
+	struct [[nodiscard]] View final : Impl {
 	private:
 		V value_;
 
 	public:
-		View() noexcept = default;
+		explicit View() noexcept = default;
 
-		View(V value) noexcept 
+		explicit View(V value) noexcept 
 			: value_{ value }
 		{}
 
-		auto get_handle(this const View self) noexcept {
-			return self.value_.handle;
-		}
+		View(const View&) noexcept = default;
+		View& operator=(const View&) noexcept = default;
 
-		auto get_parent(this const View self) noexcept requires DependentValue<V> {
-			return self.value_.parent;
-		}
-	};
-
-	template<Value V, typename Impl, typename... Tags>
-	struct ValueType final : Impl {
-		friend typename Impl;
-	private:
-		V value_;
-
-	public:
-		explicit ValueType() noexcept = default;
-		explicit ValueType(V value) noexcept : value_{ value } {}
-
-		~ValueType() noexcept {
-			if (is_valid()) {
-				value_.destroy();
-			}
-		}
-
-		ValueType(ValueType&& rhs) noexcept requires !meta::SameAsAny<PinnedTag, Tags...>
+		View(View&& rhs) noexcept
 			: value_{ rhs.value_ }
 		{
 			if (&rhs == this) {
 				return;
 			}
-
-			rhs.value_.handle = VK_NULL_HANDLE;
-
-			if constexpr (DependentValue<V>) {
-				rhs.value_.parent = VK_NULL_HANDLE;
-			}
+			value_ = rhs.value_;
+			clear_value(rhs.value_);
 		}
 
-		ValueType& operator=(ValueType&& rhs) noexcept requires !meta::SameAsAny<PinnedTag, Tags...>
+		View& operator=(View&& rhs) noexcept
 		{
 			if (&rhs == this) {
 				return *this;
 			}
-
 			value_ = rhs.value_;
-			rhs.value_.handle = VK_NULL_HANDLE;
-
-			if constexpr (DependentValue<V>) {
-				rhs.value_.parent = VK_NULL_HANDLE;
-			}
+			clear_value(rhs.value_);
 
 			return *this;
 		}
 
-		ValueType(const ValueType&) noexcept 
-			requires meta::SameAsAny<CopyableTag, Tags...> && !meta::SameAsAny<MoveOnlyTag, Tags...> && !meta::SameAsAny<PinnedTag, Tags...>
-		= default;
+		[[nodiscard]]
+		auto get_handle(this const View self) noexcept {
+			return self.value_.handle;
+		}
 
-		ValueType& operator=(const ValueType&) noexcept 
-			requires meta::SameAsAny<CopyableTag, Tags...> && !meta::SameAsAny<MoveOnlyTag, Tags...> && !meta::SameAsAny<PinnedTag, Tags...>
-		= default;
+		[[nodiscard]]
+		auto get_parent(this const View self) noexcept requires DependentValue<V> {
+			return self.value_.parent;
+		}
+	};
 
-		V unwrap_native_handle() noexcept requires meta::SameAsAny<MoveOnlyTag, Tags...> {
-			auto ret = value_;
-			value_.handle = VK_NULL_HANDLE;
+	template<Value V, typename Impl, IsTag... Tags>
+	struct [[nodiscard]] OwnedType final : Impl {
+		friend typename Impl;
+	private:
+		V value_;
 
-			if constexpr (DependentValue<V>) {
-				value_.parent = VK_NULL_HANDLE;
+	public:
+		explicit OwnedType() noexcept = default;
+		explicit OwnedType(V value) noexcept : value_{ value } {}
+
+		~OwnedType() noexcept {
+			if (is_valid()) {
+				value_.destroy();
 			}
+		}
+
+		OwnedType(OwnedType&& rhs) noexcept requires !meta::SameAsAny<PinnedTag, Tags...>
+			: value_{ rhs.value_ }
+		{
+			if (&rhs == this) {
+				return;
+			}
+			value_ = rhs.value_;
+			clear_value(rhs.value_);
+		}
+
+		OwnedType& operator=(OwnedType&& rhs) noexcept requires !meta::SameAsAny<PinnedTag, Tags...>
+		{
+			if (&rhs == this) {
+				return *this;
+			}
+			value_ = rhs.value_;
+			clear_value(rhs.value_);
+
+			return *this;
+		}
+
+		OwnedType(const OwnedType&) noexcept 
+			requires meta::SameAsAny<CopyableTag, Tags...> && !meta::SameAsAny<MoveOnlyTag, Tags...> && !meta::SameAsAny<PinnedTag, Tags...>
+		= default;
+
+		OwnedType& operator=(const OwnedType&) noexcept 
+			requires meta::SameAsAny<CopyableTag, Tags...> && !meta::SameAsAny<MoveOnlyTag, Tags...> && !meta::SameAsAny<PinnedTag, Tags...>
+		= default;
+
+		[[nodiscard]]
+		auto unwrap_native_handle(this OwnedType&& self) noexcept requires meta::SameAsAny<MoveOnlyTag, Tags...> || meta::SameAsAny<PinnedTag, Tags...>
+		{
+			auto ret = self.value_.handle;
+			clear_value(self.value_);
 
 			return ret;
 		}
 
-		bool is_valid() noexcept {
+		[[nodiscard]]
+		bool is_valid() const noexcept {
 			return value_.handle != VK_NULL_HANDLE;
 		}
 
-		View<V, Impl> get_view(this ValueType& self) noexcept requires meta::SameAsAny<ViewableTag, Tags...> {
-			return self.value_;
+		[[nodiscard]]
+		View<V, Impl> get_view(this OwnedType& self) noexcept requires meta::SameAsAny<ViewableTag, Tags...> {
+			return View<V, Impl>{ self.value_ };
 		}
 
 	private:
-		auto get_handle() noexcept {
+		[[nodiscard]]
+		auto get_handle() const noexcept {
 			return value_.handle;
+		}
+
+		[[nodiscard]]
+		auto get_parent() const noexcept requires DependentValue<V> {
+			return value_.parent;
+		}
+	};
+
+	template<Value V, typename Impl>
+	struct [[nodiscard]] ManagableType final : Impl{
+		friend typename Impl;
+	private:
+		V value_;
+
+#ifdef GX_INDEV
+		bool is_guaranteed_to_be_destroyed_ = false;
+#endif
+
+	public:
+		ManagableType() noexcept = default;
+		ManagableType(V value) noexcept 
+			: value_{ value }
+		{}
+
+		ManagableType(const ManagableType&) noexcept = default;
+		ManagableType& operator=(const ManagableType&) noexcept = default;
+
+		ManagableType(ManagableType&& rhs) noexcept
+			: value_{ rhs.value_ }
+		{
+			if (&rhs == this) {
+				return;
+			}
+			value_ = rhs.value_;
+			clear_value(rhs.value_);
+
+#ifdef GX_INDEV
+			rhs.is_guaranteed_to_be_destroyed_ = true;
+#endif
+		}
+
+		ManagableType& operator=(ManagableType&& rhs) noexcept
+		{
+			if (&rhs == this) {
+				return *this;
+			}
+			value_ = rhs.value_;
+			clear_value(rhs.value_);
+
+#ifdef GX_INDEV
+			rhs.is_guaranteed_to_be_destroyed_ = true;
+#endif
+			return *this;
+		}
+
+#ifdef GX_INDEV
+		~ManagableType() noexcept {
+			assert(is_guaranteed_to_be_destroyed_ && "gx::ManagableType must be destroyed manually!");
+		}
+#endif
+
+		[[nodiscard]]
+		auto get_handle() const noexcept {
+			return value_.handle;
+		}
+
+		[[nodiscard]]
+		auto get_parent() const noexcept requires DependentValue<V> {
+			return value_.parent;
+		}
+
+		[[nodiscard]]
+		View<V, Impl> get_view(this ManagableType& self) noexcept {
+			return View<V, Impl>{ self.value_ };
+		}
+
+		void destroy() noexcept {
+			if (value_.handle != VK_NULL_HANDLE) {
+				value_.destroy();
+				clear_value(value_);
+#ifdef GX_INDEV
+				is_guaranteed_to_be_destroyed_ = true;
+#endif
+			}
+		}
+
+		template<IsTag... Tags>
+		[[nodiscard]]
+		OwnedType<V, Impl, Tags...> to_owned(this ManagableType&& self) noexcept {
+			OwnedType<V, Impl, Tags...> owned{ self.value_ };
+			clear_value(self.value_);
+#ifdef GX_INDEV
+			is_guaranteed_to_be_destroyed_ = true;
+#endif
+			return owned;
+		}
+
+		auto defer_destruction(this ManagableType&& self) noexcept {
+#ifdef GX_INDEV
+			is_guaranteed_to_be_destroyed_ = true;
+#endif
+			return std::make_pair(
+				View<V, Impl>{ self.value_ },
+				defer_exec(
+					[value = std::move(self)] {
+						value.destroy();
+					}
+				)
+			);
 		}
 	};
 
@@ -224,8 +365,8 @@ namespace gx {
 }
 
 #define DECLARE_GX_OBJECT(Name, V, Impl, ...) \
-using Name = gx::ValueType<V, Impl, __VA_ARGS__>; 
+using Name = gx::OwnedType<V, Impl, __VA_ARGS__>; 
 
 #define DECLARE_VIEWABLE_GX_OBJECT(Name, V, Impl, ...) \
-using Name = gx::ValueType<V, Impl, gx::ViewableTag, __VA_ARGS__>; \
+using Name = gx::OwnedType<V, Impl, gx::ViewableTag, __VA_ARGS__>; \
 using Name##View = decltype(std::declval<Name&>().get_view()); 

@@ -1,6 +1,7 @@
 #include <instance.hpp>
 #include <device.hpp>
 #include <extensions.hpp>
+#include <image.hpp>
 
 #include <ranges>
 #include <array>
@@ -31,6 +32,9 @@ private:
 	gx::ext::Surface surface_;
 	gx::ext::Swapchain swap_chain_;
 
+	std::vector<gx::ImageView> swap_chain_images_;
+	std::array<gx::ImageRef, 3> swap_chain_image_refs_;
+
 	HWND window_ = nullptr;
 
 public:
@@ -43,6 +47,7 @@ public:
 		destroy_();
 	}
 
+	[[nodiscard]]
 	std::expected<void, gx::ErrorCode> setup() noexcept {
 		create_window_();
 
@@ -70,8 +75,8 @@ public:
 		assert(!phys_devices.empty());
 
 		auto suited_devices = phys_devices | gx::request_discrete_gpu() | gx::request_presentation_support(surface_.get_view());
-		auto phys_device = *suited_devices.begin();
 		assert(suited_devices.begin() != suited_devices.end());
+		auto phys_device = *suited_devices.begin();
 
 		auto device_res = phys_device.get_device_builder()
 			.request_graphics_queues()
@@ -96,6 +101,19 @@ public:
 			return std::unexpected(sc_res.error());
 		}
 		swap_chain_ = std::move(sc_res).value();
+		swap_chain_images_ = gx::get_images_from_swapchain(swap_chain_.get_view());
+		
+		for (auto&& [image_ref, image] : std::views::zip(swap_chain_image_refs_, swap_chain_images_)) {
+			auto ir_res = gx::ImageRefBuilder(image, device_.get_view())
+				.with_format(gx::Format::eBGRA8_SRGB)
+				.build();
+
+			if (!ir_res.has_value()) {
+				return std::unexpected(ir_res.error());
+			}
+			image_ref = std::move(ir_res).value();
+		}
+		return {};
 	}
 
 	static LRESULT __stdcall wnd_proc_(HWND window, UINT msg, WPARAM wp, LPARAM lp) noexcept {
@@ -145,14 +163,19 @@ private:
 
 	void destroy_() noexcept {
 		DestroyWindow(window_);
+
+		for (auto& image_ref : swap_chain_image_refs_) {
+			image_ref.destroy();
+		}
 	}
 };
 
 int main() {
 	hack();
-
 	TriangleExample example{};
-	example.setup();
+
+	auto err_code = example.setup();
+	if (!err_code.has_value()) {}
 	example.run();
 	return 0;
 }

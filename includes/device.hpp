@@ -20,9 +20,6 @@
 #include "extensions.hpp"
 
 namespace gx {
-	class DeviceOwner;
-	class DeviceView;
-
 	enum class VendorType : u8 {
 		eNone = 0, 
 		eAmd,
@@ -115,7 +112,10 @@ namespace gx {
 	};
 
 	template<typename E>
-	using Device = ValueType<DeviceValue, DeviceImpl<E>, MoveOnlyTag, ViewableTag>;
+	using Device = OwnedType<DeviceValue, DeviceImpl<E>, MoveOnlyTag, ViewableTag>;
+
+	template<typename E>
+	using DeviceView = decltype(std::declval<Device<E>&>().get_view());
 
 	template<typename Es = meta::List<>>
 	struct DeviceBuilder;
@@ -171,6 +171,8 @@ namespace gx {
 
 		[[nodiscard]]
 		auto build() const noexcept -> std::expected<Device<meta::List<Es...>>, ErrorCode> {
+			// validate();
+
 			const auto& qi = PhysDeviceInfo::get(phys_device).queue_infos;
 			auto by_count = [](QueueInfo info) noexcept {
 				return info.count != 0;
@@ -182,7 +184,7 @@ namespace gx {
 
 			std::array<f32, 16> priors{ 1.f };
 			std::vector<VkDeviceQueueCreateInfo> q_infos;
-			for (auto el : rq) {
+			for (auto&& el : rq) {
 				auto queue_index = PhysDeviceInfo::get(phys_device).get_queue_index(el.type);
 				assert(queue_index.has_value() && "TODO: DeviceBuilder::build()");
 
@@ -217,6 +219,16 @@ namespace gx {
 			}
 
 			return std::unexpected(convert_vk_result(res));
+		}
+
+	private:
+		void validate() const noexcept {
+			TODO("");
+			const auto& qi = PhysDeviceInfo::get(phys_device).queue_infos;
+			auto by_count = [](QueueInfo info) noexcept {
+				return info.count != 0;
+			};
+
 		}
 	};
 
