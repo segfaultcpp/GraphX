@@ -165,7 +165,7 @@ private:
 		DestroyWindow(window_);
 
 		for (auto& image_ref : swap_chain_image_refs_) {
-			image_ref.destroy();
+			auto[view, destructor] = std::move(image_ref).defer_destruction();
 		}
 	}
 };

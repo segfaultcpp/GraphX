@@ -354,10 +354,4 @@ namespace gx {
 			TODO("");
 		}
 	};
-
-	//template<typename E>
-	//ImageRefBuilder(DeviceView<E>) -> ImageRefBuilder<E>;
-
-	//template<typename E>
-	//ImageRefBuilder(ImageView, DeviceView<E>) -> ImageRefBuilder<E>;
 }

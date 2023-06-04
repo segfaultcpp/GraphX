@@ -220,26 +220,26 @@ namespace gx {
 #endif
 
 		[[nodiscard]]
-		auto get_handle() const noexcept {
-			return value_.handle;
+		auto get_handle(this const ManagableType self) noexcept {
+			return self.value_.handle;
 		}
 
 		[[nodiscard]]
-		auto get_parent() const noexcept requires DependentValue<V> {
-			return value_.parent;
+		auto get_parent(this const ManagableType self) noexcept requires DependentValue<V> {
+			return self.value_.parent;
 		}
 
 		[[nodiscard]]
-		View<V, Impl> get_view(this ManagableType& self) noexcept {
+		View<V, Impl> get_view(this const ManagableType self) noexcept {
 			return View<V, Impl>{ self.value_ };
 		}
 
-		void destroy() noexcept {
-			if (value_.handle != VK_NULL_HANDLE) {
-				value_.destroy();
-				clear_value(value_);
+		void destroy(this ManagableType&& self) noexcept {
+			if (self.value_.handle != VK_NULL_HANDLE) {
+				self.value_.destroy();
+				clear_value(self.value_);
 #ifdef GX_INDEV
-				is_guaranteed_to_be_destroyed_ = true;
+				self.is_guaranteed_to_be_destroyed_ = true;
 #endif
 			}
 		}
@@ -250,20 +250,20 @@ namespace gx {
 			OwnedType<V, Impl, Tags...> owned{ self.value_ };
 			clear_value(self.value_);
 #ifdef GX_INDEV
-			is_guaranteed_to_be_destroyed_ = true;
+			self.is_guaranteed_to_be_destroyed_ = true;
 #endif
 			return owned;
 		}
 
 		auto defer_destruction(this ManagableType&& self) noexcept {
 #ifdef GX_INDEV
-			is_guaranteed_to_be_destroyed_ = true;
+			self.is_guaranteed_to_be_destroyed_ = true;
 #endif
 			return std::make_pair(
 				View<V, Impl>{ self.value_ },
 				defer_exec(
-					[value = std::move(self)] {
-						value.destroy();
+					[value = std::move(self)]() mutable {
+						std::move(value).destroy();
 					}
 				)
 			);
